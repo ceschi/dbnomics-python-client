@@ -16,7 +16,7 @@ pip install --editable .
 
 The `fetch_dataframe` and `fetch_dataframe_from_url` functions download time series from the DB.nomics Web API and expose them as a [Pandas DataFrame](http://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.html).
 
-The first takes individual parameters for `provider_code`, `dataset_code` and `series_code`, and the second takes an URL corresponding to the `/dataframe` endpoint of the Web API.
+The first takes individual parameters for `provider_code`, `dataset_code` and `series_code`, and the second takes an URL corresponding to the `/dataframe` endpoint of the Web API (see [API documentation](https://api.next.nomics.world/apidocs)).
 
 The second version is useful especially in conjunction with the Web UI: on a dataset page (ie https://next.nomics.world/Eurostat/rd_p_persage) there is a "Dataframe URL" link which you can copy-paste as an argument. See the examples below.
 
