@@ -8,8 +8,7 @@ This project relies on [Python Pandas](https://pandas.pydata.org/).
 
 A demo is available thanks to the [Binder project](https://mybinder.org/).
 
-To launch the demo, click here:
-[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/cbenz/dbnomics-python-client/master)
+To launch the demo, click here: [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/cbenz/dbnomics-python-client/master) then wait a couple of seconds to be redirected to a Jupyter Notebook home page, displaying a list of files. In this list, click on `index.ipynb`. Then you'll be in a demo notebook, where you'll be able to play with the DB.nomics Python client.
 
 Unfortunately, Binder is only compatible with GitHub for now, and DB.nomics is hosted on its own [GitLab platform](https://git.nomics.world/). That's why we created a mirror of this project [on GitHub](https://github.com/cbenz/dbnomics-python-client), but the real home is [on DB.nomics GitLab](https://git.nomics.world/dbnomics/dbnomics-python-client).
 
