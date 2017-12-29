@@ -79,5 +79,6 @@ setup(
     install_requires=[
         'requests >= 2.18.4',
         'pandas >= 0.21',
+        'semver',
     ],
 )

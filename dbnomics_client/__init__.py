@@ -24,11 +24,19 @@ import logging
 
 import pandas as pd
 import requests
+import semver
 
 
 default_api_base_url = 'https://api.next.nomics.world'
+api_min_version = '0.9.0'
+api_max_version = '0.10.0'
 
 log = logging.getLogger(__name__)
+
+
+def api_version_matches(api_version):
+    return semver.match(api_version, ">=" + api_min_version) and \
+        semver.match(api_version, "<" + api_max_version)
 
 
 def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=default_api_base_url, limit=None):
@@ -74,6 +82,10 @@ def fetch_dataframe_page(dataframe_url, offset):
     )
     log.debug(page_url)
     response_json = requests.get(page_url).json()
+    api_version = response_json['_meta']['python_project_version']
+    if not api_version_matches(api_version):
+        raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}, < {}'.format(
+            api_version, api_min_version, api_max_version))
     dataframe_json = response_json.get('dataframe')
     if dataframe_json is None:
         raise ValueError('Could not find "dataframe" key in response JSON payload. URL = {!r}, received: {!r}'.format(
