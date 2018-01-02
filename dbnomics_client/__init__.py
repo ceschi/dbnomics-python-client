@@ -28,9 +28,10 @@ import requests
 import semver
 
 
-default_api_base_url = 'https://api.next.nomics.world'
 api_min_version = '0.9.0'
 api_max_version = '0.10.0'
+default_api_base_url = 'https://api.next.nomics.world'
+default_limit = 3000
 
 log = logging.getLogger(__name__)
 
@@ -40,13 +41,19 @@ def api_version_matches(api_version):
         semver.match(api_version, "<" + api_max_version)
 
 
-def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=default_api_base_url, limit=None):
+def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=default_api_base_url, limit=default_limit):
     """Download a dataframe from DB.nomics Web API, giving individual parameters. A dataframe contains many time series.
 
     Return a Python Pandas `DataFrame`.
 
     If the number of time series is greater than the limit allowed by the Web API, this function reconstitutes data
     by making many HTTP requests.
+
+    By default this function sets a limit of 3000 series, via the `dbnomics_client.default_limit` constant.
+    Pass `limit=None` explicitly to download an unlimited number of series.
+
+    The DB.nomics Web API base URL can be customized by passing a value to the `api_base_url` parameter.
+    This will probably never be useful, unless somebody deploys a new instance of DB.nomics under another domain name.
     """
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
@@ -54,19 +61,22 @@ def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=de
     return fetch_dataframe_from_url(dataframe_url, limit=limit)
 
 
-def fetch_dataframe_from_url(url, limit=None):
+def fetch_dataframe_from_url(url, limit=default_limit):
     """Download a dataframe from DB.nomics Web API, giving an URL. A dataframe contains many time series.
 
     Return a Python Pandas `DataFrame`.
 
     If the number of time series is greater than the limit allowed by the Web API, this function reconstitutes data
     by making many HTTP requests.
+
+    By default this function sets a limit of 3000 series, via the `dbnomics_client.default_limit` constant.
+    Pass `limit=None` explicitly to download an unlimited number of series.
     """
     dataframe_json_data = []
     while True:
-        dataframe_json = fetch_dataframe_page(url, offset=len(dataframe_json_data))
+        nb_series = len(set(map(lambda e: e['code'], dataframe_json_data)))
+        dataframe_json = fetch_dataframe_page(url, offset=nb_series)
         dataframe_json_data.extend(dataframe_json['data'])
-        nb_series = len(dataframe_json_data)
         if limit is not None and nb_series >= limit:
             dataframe_json_data = dataframe_json_data[:limit]
             break
