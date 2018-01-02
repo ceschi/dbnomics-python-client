@@ -92,7 +92,14 @@ def fetch_dataframe_page(dataframe_url, offset):
         offset,
     )
     log.debug(page_url)
-    response_json = requests.get(page_url).json()
+    response = requests.get(page_url)
+    try:
+        response_json = response.json()
+    except ValueError as exc:
+        raise ValueError('Could not parse JSON payload of response because: {}. Response text: {}'.format(
+            exc, response.text))
+    if response.status_code == 404:
+        raise ValueError(response_json['message'])
     api_version = response_json['_meta']['python_project_version']
     if not api_version_matches(api_version):
         raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}, < {}'.format(
