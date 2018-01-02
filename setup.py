@@ -34,16 +34,16 @@ with codecs.open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 setup(
-    name='DB.nomics-API',
-    version='0.9.0',
+    name='DB.nomics-Client',
+    version='0.0.1',
 
-    description='DB.nomics Web API',
+    description='DB.nomics Web API Client',
     long_description=LONG_DESCRIPTION,
 
     url='https://git.nomics.world/dbnomics/dbnomics-python-client',
 
     author='DB.nomics Team',
-    # author_email='',
+    author_email='christophe.benz@cepremap.org',
 
     license='AGPLv3',
 
@@ -59,8 +59,6 @@ setup(
         'Intended Audience :: Developers',
 
         'Topic :: Scientific/Engineering :: Information Analysis',
-        'Topic :: Internet :: WWW/HTTP :: WSGI :: Server',
-        'Framework :: Flask',
         'Environment :: Web Environment',
         'Operating System :: POSIX',
 
