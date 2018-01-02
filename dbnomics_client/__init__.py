@@ -42,9 +42,9 @@ def api_version_matches(api_version):
 
 
 def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=default_api_base_url, limit=default_limit):
-    """Download a dataframe from DB.nomics Web API, giving individual parameters. A dataframe contains many time series.
+    """Download a dataframe from DB.nomics Web API, giving individual parameters.
 
-    Return a Python Pandas `DataFrame`.
+    Return a Python Pandas `DataFrame`. A dataframe contains many time series.
 
     If the number of time series is greater than the limit allowed by the Web API, this function reconstitutes data
     by making many HTTP requests.
@@ -61,10 +61,12 @@ def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=de
     return fetch_dataframe_from_url(dataframe_url, limit=limit)
 
 
-def fetch_dataframe_from_url(url, limit=default_limit):
-    """Download a dataframe from DB.nomics Web API, giving an URL. A dataframe contains many time series.
+def fetch_dataframe_from_url(url, api_base_url=default_api_base_url, limit=default_limit):
+    """Download a dataframe from DB.nomics Web API, giving the URL of the dataset on DB.nomics website.
 
-    Return a Python Pandas `DataFrame`.
+    Example: fetch_dataframe_from_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
+
+    Return a Python Pandas `DataFrame`. A dataframe contains many time series.
 
     If the number of time series is greater than the limit allowed by the Web API, this function reconstitutes data
     by making many HTTP requests.
