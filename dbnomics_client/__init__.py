@@ -72,15 +72,15 @@ def fetch_dataframe_from_url(url, limit=default_limit):
     By default this function sets a limit of 3000 series, via the `dbnomics_client.default_limit` constant.
     Pass `limit=None` explicitly to download an unlimited number of series.
     """
+    def get_nb_series():
+        return len(set(map(lambda e: e['code'], dataframe_json_data)))
+    url = website_url_to_api_url(url, api_base_url=api_base_url)
     dataframe_json_data = []
     while True:
-        nb_series = len(set(map(lambda e: e['code'], dataframe_json_data)))
-        dataframe_json = fetch_dataframe_page(url, offset=nb_series)
+        dataframe_json = fetch_dataframe_page(url, offset=get_nb_series())
         dataframe_json_data.extend(dataframe_json['data'])
-        if limit is not None and nb_series >= limit:
-            dataframe_json_data = dataframe_json_data[:limit]
-            break
-        if nb_series == dataframe_json['num_found']:
+        nb_series = get_nb_series()
+        if (limit is not None and nb_series >= limit) or nb_series == dataframe_json['num_found']:
             break
     return pd.DataFrame(dataframe_json_data)
 
