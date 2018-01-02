@@ -20,6 +20,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import itertools
 import logging
 
 import pandas as pd
@@ -93,4 +94,35 @@ def fetch_dataframe_page(dataframe_url, offset):
     assert dataframe_json['type'] == 'dict', dataframe_json['type']
     assert dataframe_json['orient'] == 'columns', dataframe_json['orient']
     assert dataframe_json['offset'] == offset, (dataframe_json['offset'], offset)
+    dataframe_json['data'] = list(iter_dataframe_dicts(dataframe_json['data']))
     return dataframe_json
+
+
+def iter_dataframe_dicts(seq):
+    """Transform the `list` of `dict` received by DB.nomics Web API to a `list` of `dict` compatible with Python Pandas,
+    in order to build a `DataFrame`.
+
+    >>> list(iter_dataframe_dicts([
+    ...     {
+    ...         "code": "s1",
+    ...         "FREQ": "M",
+    ...         "period": ["2010", "2011", "2012"],
+    ...         "value": [1, 2, 3],
+    ...     },
+    ...     {
+    ...         "code": "s2",
+    ...         "FREQ": "Q",
+    ...         "period": ["2010"],
+    ...         "value": [999],
+    ...     }
+    ... ]))
+    [{'code': 's1', 'FREQ': 'M', 'period': '2010', 'value': 1}, {'code': 's1', 'FREQ': 'M', 'period': '2011', 'value': 2}, {'code': 's1', 'FREQ': 'M', 'period': '2012', 'value': 3}, {'code': 's2', 'FREQ': 'Q', 'period': '2010', 'value': 999}]
+    """
+    def iter_dataframe_dicts(d):
+        for period, value in zip(d['period'], d['value']):
+            dataframe_dict = d.copy()
+            dataframe_dict['period'] = period
+            dataframe_dict['value'] = value
+            yield dataframe_dict
+
+    return itertools.chain.from_iterable(map(iter_dataframe_dicts, seq))

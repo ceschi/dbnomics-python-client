@@ -79,4 +79,11 @@ setup(
         'pandas >= 0.21',
         'semver',
     ],
+
+    setup_requires=[
+        'pytest-runner',
+    ],
+    tests_require=[
+        'pytest',
+    ],
 )
