@@ -136,10 +136,15 @@ def iter_dataframe_dicts(seq):
     [{'code': 's1', 'FREQ': 'M', 'period': '2010', 'value': 1}, {'code': 's1', 'FREQ': 'M', 'period': '2011', 'value': 2}, {'code': 's1', 'FREQ': 'M', 'period': '2012', 'value': 3}, {'code': 's2', 'FREQ': 'Q', 'period': '2010', 'value': 999}]
     """
     def iter_dataframe_dicts(d):
-        for period, value in zip(d['period'], d['value']):
+        keys_with_list = [
+            k
+            for k, v in d.items()
+            if isinstance(v, list)
+        ]
+        for keys_with_list_values in zip(*(d[k] for k in keys_with_list)):
             dataframe_dict = d.copy()
-            dataframe_dict['period'] = period
-            dataframe_dict['value'] = value
+            for idx, k in enumerate(keys_with_list):
+                dataframe_dict[k] = keys_with_list_values[idx]
             yield dataframe_dict
 
     return itertools.chain.from_iterable(map(iter_dataframe_dicts, seq))
