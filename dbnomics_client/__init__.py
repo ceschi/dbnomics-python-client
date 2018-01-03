@@ -101,7 +101,7 @@ def fetch_dataframe_page(dataframe_url, offset):
         raise ValueError('Could not parse JSON payload of response because: {}. Response text: {}'.format(
             exc, response.text))
     if response.status_code == 404:
-        raise ValueError(response_json['message'])
+        raise ValueError("Could not fetch dataframe from URL {} because: {}".format(page_url, response_json['message']))
     api_version = response_json['_meta']['python_project_version']
     if not api_version_matches(api_version):
         raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}, < {}'.format(
