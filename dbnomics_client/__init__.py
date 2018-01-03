@@ -22,11 +22,11 @@
 
 import itertools
 import logging
+from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 import pandas as pd
 import requests
 import semver
-
 
 api_min_version = '0.9.0'
 api_max_version = '0.10.0'
@@ -58,10 +58,10 @@ def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=de
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
     dataframe_url = api_base_url + '/dataframe/{}/{}?series_code={}'.format(provider_code, dataset_code, series_code)
-    return fetch_dataframe_from_url(dataframe_url, limit=limit)
+    return fetch_dataframe_from_url(dataframe_url, is_api_url=True, limit=limit)
 
 
-def fetch_dataframe_from_url(url, api_base_url=default_api_base_url, limit=default_limit):
+def fetch_dataframe_from_url(url, api_base_url=default_api_base_url, is_api_url=False, limit=default_limit):
     """Download a dataframe from DB.nomics Web API, giving the URL of the dataset on DB.nomics website.
 
     Example: fetch_dataframe_from_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
@@ -73,10 +73,14 @@ def fetch_dataframe_from_url(url, api_base_url=default_api_base_url, limit=defau
 
     By default this function sets a limit of 3000 series, via the `dbnomics_client.default_limit` constant.
     Pass `limit=None` explicitly to download an unlimited number of series.
+
+    If the `url` parameter is an URL of DB.nomics Web API (and not an URL of the website), the parameter `is_api_url`
+    must be set to `True`. By default it is `False`.
     """
     def get_nb_series():
         return len(set(map(lambda e: e['code'], dataframe_json_data)))
-    url = website_url_to_api_url(url, api_base_url=api_base_url)
+    if not is_api_url:
+        url = website_url_to_api_url(url, api_base_url=api_base_url)
     dataframe_json_data = []
     while True:
         dataframe_json = fetch_dataframe_page(url, offset=get_nb_series())
@@ -150,3 +154,62 @@ def iter_dataframe_dicts(seq):
             yield dataframe_dict
 
     return itertools.chain.from_iterable(map(iter_dataframe_dicts, seq))
+
+
+# URLs
+
+
+def dimensions_to_dimension_params(dimensions):
+    """Transform a single query string parameter (named "dimensions") to many parameters (named "dimension").
+
+    >>> dimensions_to_dimension_params('k1:v1')
+    ['k1:v1']
+    >>> dimensions_to_dimension_params('k1:v1,')
+    ['k1:v1']
+    >>> dimensions_to_dimension_params('k1:v1a,v1b')
+    ['k1:v1a', 'k1:v1b']
+    >>> dimensions_to_dimension_params('k1:v1;k2:v2')
+    ['k1:v1', 'k2:v2']
+    >>> dimensions_to_dimension_params('k1:v1;k2:v2;')
+    ['k1:v1', 'k2:v2']
+    >>> dimensions_to_dimension_params('k1:v1a,v1b;k2:v2a,v2b')
+    ['k1:v1a', 'k1:v1b', 'k2:v2a', 'k2:v2b']
+    """
+    def iter_dimension_params():
+        for dimension in list(filter(None, dimensions.split(';'))):
+            k, values = list(filter(None, dimension.split(':')))
+            for v in list(filter(None, values.split(','))):
+                yield '{}:{}'.format(k, v)
+
+    return list(iter_dimension_params())
+
+
+def website_url_to_api_url(url, api_base_url=default_api_base_url):
+    """Transform the URL of a dataset on DB.nomics website to the URL in the Web API `/dataframe` endpoint.
+
+    >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
+    'https://api.next.nomics.world/dataframe/Eurostat/ei_bsin_q_r2'
+    >>> website_url_to_api_url("https://localhost:8000/Eurostat/ei_bsin_q_r2", api_base_url="http://localhost:5000")
+    'http://localhost:5000/dataframe/Eurostat/ei_bsin_q_r2'
+    >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2?dimensions=indic%3ABS-FLP6-PC")
+    'https://api.next.nomics.world/dataframe/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP6-PC'
+    >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2?dimensions=indic%3ABS-FLP2-PC%2CBS-FLP6-PC")
+    'https://api.next.nomics.world/dataframe/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP2-PC&dimension=indic%3ABS-FLP6-PC'
+    """
+    api_base_url_parts = urlsplit(api_base_url)
+    url_split_result = urlsplit(url)
+    url_parts = list(url_split_result)
+    url_parts[0] = api_base_url_parts[0]
+    url_parts[1] = api_base_url_parts[1]
+    url_parts[2] = '/dataframe' + url_split_result.path
+    query = parse_qs(url_split_result.query)
+    dimensions = query.get("dimensions")
+    if dimensions:
+        if len(dimensions) > 1:
+            raise ValueError(
+                "URL should contain zero or one query string parameter named 'dimensions', but {} were found.".format(len(dimensions)))
+        url_parts[3] = "&".join(
+            'dimension=' + quote(dimension_param)
+            for dimension_param in dimensions_to_dimension_params(dimensions[0])
+        )
+    return urlunsplit(url_parts)
