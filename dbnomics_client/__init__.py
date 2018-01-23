@@ -28,8 +28,8 @@ import pandas as pd
 import requests
 import semver
 
-api_min_version = '0.9.0'
-api_max_version = '0.10.0'
+api_min_version = '0.10.0'
+api_max_version = '0.11.0'
 default_api_base_url = 'https://api.next.nomics.world'
 default_limit = 3000
 
@@ -41,8 +41,8 @@ def api_version_matches(api_version):
         semver.match(api_version, "<" + api_max_version)
 
 
-def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=default_api_base_url, limit=default_limit):
-    """Download a dataframe from DB.nomics Web API, giving individual parameters.
+def fetch(provider_code, dataset_code, series_codes=[], api_base_url=default_api_base_url, limit=default_limit):
+    """Download time series from DB.nomics Web API, giving individual parameters.
 
     Return a Python Pandas `DataFrame`. A dataframe contains many time series.
 
@@ -55,16 +55,21 @@ def fetch_dataframe(provider_code, dataset_code, series_code='', api_base_url=de
     The DB.nomics Web API base URL can be customized by passing a value to the `api_base_url` parameter.
     This will probably never be useful, unless somebody deploys a new instance of DB.nomics under another domain name.
     """
+    assert isinstance(series_codes, list), series_codes
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
-    dataframe_url = api_base_url + '/dataframe/{}/{}?series_code={}'.format(provider_code, dataset_code, series_code)
-    return fetch_dataframe_from_url(dataframe_url, is_api_url=True, limit=limit)
+    series_codes_param = "&".join(
+        "series_code={}".format(series_code)
+        for series_code in series_codes
+    )
+    series_json_url = api_base_url + '/{}/{}?{}'.format(provider_code, dataset_code, series_codes_param)
+    return fetch_from_url(series_json_url, is_api_url=True, limit=limit)
 
 
-def fetch_dataframe_from_url(url, api_base_url=default_api_base_url, is_api_url=False, limit=default_limit):
-    """Download a dataframe from DB.nomics Web API, giving the URL of the dataset on DB.nomics website.
+def fetch_from_url(url, api_base_url=default_api_base_url, is_api_url=False, limit=default_limit):
+    """Download time series from DB.nomics Web API, giving the URL of the dataset on DB.nomics website.
 
-    Example: fetch_dataframe_from_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
+    Example: fetch_from_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
 
     Return a Python Pandas `DataFrame`. A dataframe contains many time series.
 
@@ -78,23 +83,25 @@ def fetch_dataframe_from_url(url, api_base_url=default_api_base_url, is_api_url=
     must be set to `True`. By default it is `False`.
     """
     def get_nb_series():
-        return len(set(map(lambda e: e['code'], dataframe_json_data)))
+        return len(set(map(lambda e: e['code'], series_json_list)))
     if not is_api_url:
         url = website_url_to_api_url(url, api_base_url=api_base_url)
-    dataframe_json_data = []
+    series_json_list = []
     while True:
-        dataframe_json = fetch_dataframe_page(url, offset=get_nb_series())
-        dataframe_json_data.extend(dataframe_json['data'])
+        dataset_json, series_json_page = fetch_series_json_page(url, offset=get_nb_series())
+        dataset_code = dataset_json["code"]
+        dataset_name = dataset_json.get("name")
+        series_json_list.extend(list(iter_column_json_dicts(series_json_page['data'], dataset_code, dataset_name)))
         nb_series = get_nb_series()
-        if (limit is not None and nb_series >= limit) or nb_series == dataframe_json['num_found']:
+        if (limit is not None and nb_series >= limit) or nb_series == series_json_page['num_found']:
             break
-    return pd.DataFrame(dataframe_json_data)
+    return pd.DataFrame(series_json_list)
 
 
-def fetch_dataframe_page(dataframe_url, offset):
+def fetch_series_json_page(series_json_url, offset):
     page_url = '{}{}offset={}'.format(
-        dataframe_url,
-        '&' if '?' in dataframe_url else '?',
+        series_json_url,
+        '&' if '?' in series_json_url else '?',
         offset,
     )
     log.debug(page_url)
@@ -105,27 +112,25 @@ def fetch_dataframe_page(dataframe_url, offset):
         raise ValueError('Could not parse JSON payload of response because: {}. Response text: {}'.format(
             exc, response.text))
     if response.status_code == 404:
-        raise ValueError("Could not fetch dataframe from URL {} because: {}".format(page_url, response_json['message']))
+        raise ValueError("Could not fetch data from URL {} because: {}".format(page_url, response_json['message']))
     api_version = response_json['_meta']['python_project_version']
     if not api_version_matches(api_version):
         raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}, < {}'.format(
             api_version, api_min_version, api_max_version))
-    dataframe_json = response_json.get('dataframe')
-    if dataframe_json is None:
-        raise ValueError('Could not find "dataframe" key in response JSON payload. URL = {!r}, received: {!r}'.format(
+
+    series_json_page = response_json.get('series')
+    if series_json_page is None:
+        raise ValueError('Could not find "series" key in response JSON payload. URL = {!r}, received: {!r}'.format(
             page_url, response_json))
-    assert dataframe_json['type'] == 'dict', dataframe_json['type']
-    assert dataframe_json['orient'] == 'columns', dataframe_json['orient']
-    assert dataframe_json['offset'] == offset, (dataframe_json['offset'], offset)
-    dataframe_json['data'] = list(iter_dataframe_dicts(dataframe_json['data']))
-    return dataframe_json
+    assert series_json_page['offset'] == offset, (series_json_page['offset'], offset)
+    return response_json['dataset'], series_json_page
 
 
-def iter_dataframe_dicts(seq):
+def iter_column_json_dicts(seq, dataset_code, dataset_name):
     """Transform the `list` of `dict` received by DB.nomics Web API to a `list` of `dict` compatible with Python Pandas,
     in order to build a `DataFrame`.
 
-    >>> list(iter_dataframe_dicts([
+    >>> list(iter_column_json_dicts([
     ...     {
     ...         "code": "s1",
     ...         "FREQ": "M",
@@ -138,22 +143,28 @@ def iter_dataframe_dicts(seq):
     ...         "period": ["2010"],
     ...         "value": [999],
     ...     }
-    ... ]))
-    [{'code': 's1', 'FREQ': 'M', 'period': '2010', 'value': 1}, {'code': 's1', 'FREQ': 'M', 'period': '2011', 'value': 2}, {'code': 's1', 'FREQ': 'M', 'period': '2012', 'value': 3}, {'code': 's2', 'FREQ': 'Q', 'period': '2010', 'value': 999}]
+    ... ], "ABCD", "Very cool dataset"))
+    [{'code': 's1', 'FREQ': 'M', 'period': '2010', 'value': 1, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}, {'code': 's1', 'FREQ': 'M', 'period': '2011', 'value': 2, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}, {'code': 's1', 'FREQ': 'M', 'period': '2012', 'value': 3, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}, {'code': 's2', 'FREQ': 'Q', 'period': '2010', 'value': 999, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}]
     """
-    def iter_dataframe_dicts(d):
+    def iter_expanded_dicts(d):
+        assert "period" in d, d
+        assert "value" in d, d
+        assert len(d["period"]) == len(d["value"]), d
         keys_with_list = [
             k
             for k, v in d.items()
             if isinstance(v, list)
         ]
         for keys_with_list_values in zip(*(d[k] for k in keys_with_list)):
-            dataframe_dict = d.copy()
+            column_json = d.copy()
+            column_json["dataset_code"] = dataset_code
+            if dataset_name:
+                column_json["dataset_name"] = dataset_name
             for idx, k in enumerate(keys_with_list):
-                dataframe_dict[k] = keys_with_list_values[idx]
-            yield dataframe_dict
+                column_json[k] = keys_with_list_values[idx]
+            yield column_json
 
-    return itertools.chain.from_iterable(map(iter_dataframe_dicts, seq))
+    return itertools.chain.from_iterable(map(iter_expanded_dicts, seq))
 
 
 # URLs
@@ -185,23 +196,24 @@ def dimensions_to_dimension_params(dimensions):
 
 
 def website_url_to_api_url(url, api_base_url=default_api_base_url):
-    """Transform the URL of a dataset on DB.nomics website to the URL in the Web API `/dataframe` endpoint.
+    """Transform the URL of a dataset on DB.nomics website to the URL in the Web API
+    endpoint `/{provider_code}/{dataset_code}`.
 
     >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
-    'https://api.next.nomics.world/dataframe/Eurostat/ei_bsin_q_r2'
+    'https://api.next.nomics.world/Eurostat/ei_bsin_q_r2'
     >>> website_url_to_api_url("https://localhost:8000/Eurostat/ei_bsin_q_r2", api_base_url="http://localhost:5000")
-    'http://localhost:5000/dataframe/Eurostat/ei_bsin_q_r2'
+    'http://localhost:5000/Eurostat/ei_bsin_q_r2'
     >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2?dimensions=indic%3ABS-FLP6-PC")
-    'https://api.next.nomics.world/dataframe/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP6-PC'
+    'https://api.next.nomics.world/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP6-PC'
     >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2?dimensions=indic%3ABS-FLP2-PC%2CBS-FLP6-PC")
-    'https://api.next.nomics.world/dataframe/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP2-PC&dimension=indic%3ABS-FLP6-PC'
+    'https://api.next.nomics.world/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP2-PC&dimension=indic%3ABS-FLP6-PC'
     """
     api_base_url_parts = urlsplit(api_base_url)
     url_split_result = urlsplit(url)
     url_parts = list(url_split_result)
     url_parts[0] = api_base_url_parts[0]
     url_parts[1] = api_base_url_parts[1]
-    url_parts[2] = '/dataframe' + url_split_result.path
+    url_parts[2] = url_split_result.path
     query = parse_qs(url_split_result.query)
     dimensions = query.get("dimensions")
     if dimensions:
