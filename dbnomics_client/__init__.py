@@ -67,7 +67,7 @@ def fetch(provider_code, dataset_code, series_codes=[], api_base_url=default_api
 
 
 def fetch_from_url(url, api_base_url=default_api_base_url, is_api_url=False, limit=default_limit):
-    """Download time series from DB.nomics Web API, giving the URL of the dataset on DB.nomics website.
+    """Download time series from DB.nomics Web API, giving the URL of the series on DB.nomics website.
 
     Example: fetch_from_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
 
