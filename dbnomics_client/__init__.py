@@ -1,7 +1,4 @@
-#! /usr/bin/env python3
-
-
-# dbnomics-python-client -- Access DB.nomics time series from Python
+# dbnomics-python-client -- Access DBnomics time series from Python
 # By: Christophe Benz <christophe.benz@cepremap.org>
 #
 # Copyright (C) 2017 Cepremap
@@ -20,208 +17,175 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import itertools
-import logging
-from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
+
+"""
+This is the DBnomics Python client allowing to download time series from DBnomics Web API.
+
+The `fetch_*` functions call DBnomics Web API as many times as necessary to download the wanted number of series.
+
+The DBnomics Web API base URL can be customized by using the `api_base_url` parameter.
+This will probably never be useful, unless somebody deploys a new instance of DBnomics under another domain name.
+"""
+
+
+import json
 
 import pandas as pd
-import requests
-import semver
 
-api_min_version = '0.10.0'
-api_max_version = '0.11.0'
+from .internals import api_version_matches, fetch_series_json_page
+
+
 default_api_base_url = 'https://api.next.nomics.world'
-default_limit = 3000
-
-log = logging.getLogger(__name__)
+default_max_nb_series = 50
 
 
-def api_version_matches(api_version):
-    return semver.match(api_version, ">=" + api_min_version) and \
-        semver.match(api_version, "<" + api_max_version)
+class TooManySeries(Exception):
+    def __init__(self, num_found, max_nb_series):
+        message = (
+            "DBnomics Web API found {num_found} series matching your request, " +
+            (
+                "but you gave the argument 'max_nb_series={max_nb_series}'."
+                if max_nb_series is not None
+                else "but you did not give the argument 'max_nb_series', so a default value of {default_max_nb_series} was used."
+            ) +
+            " Please give a higher value (at least {num_found}), and try again."
+        ).format(
+            default_max_nb_series=default_max_nb_series,
+            max_nb_series=max_nb_series,
+            num_found=num_found,
+        )
+        super().__init__(message)
 
 
-def fetch(provider_code, dataset_code, series_codes=[], api_base_url=default_api_base_url, limit=default_limit):
-    """Download time series from DB.nomics Web API, giving individual parameters.
+def fetch_series(provider_code, dataset_code, max_nb_series=None, api_base_url=default_api_base_url):
+    """Download time series of a particular dataset in a particular provider, from DBnomics Web API.
 
-    Return a Python Pandas `DataFrame`. A dataframe contains many time series.
+    Return a Python Pandas `DataFrame`.
 
-    If the number of time series is greater than the limit allowed by the Web API, this function reconstitutes data
-    by making many HTTP requests.
-
-    By default this function sets a limit of 3000 series, via the `dbnomics_client.default_limit` constant.
-    Pass `limit=None` explicitly to download an unlimited number of series.
-
-    The DB.nomics Web API base URL can be customized by passing a value to the `api_base_url` parameter.
-    This will probably never be useful, unless somebody deploys a new instance of DB.nomics under another domain name.
+    If `max_nb_series` is `None`, a default value of 50 series will be used.
     """
-    assert isinstance(series_codes, list), series_codes
+    # Parameters validation
+    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
-    series_codes_param = "&".join(
-        "series_code={}".format(series_code)
-        for series_code in series_codes
-    )
-    series_json_url = api_base_url + '/{}/{}?{}'.format(provider_code, dataset_code, series_codes_param)
-    return fetch_from_url(series_json_url, is_api_url=True, limit=limit)
+
+    series_json_url = api_base_url + '/{}/{}'.format(provider_code, dataset_code)
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series, api_base_url=api_base_url)
 
 
-def fetch_from_url(url, api_base_url=default_api_base_url, is_api_url=False, limit=default_limit):
-    """Download time series from DB.nomics Web API, giving the URL of the series on DB.nomics website.
+def fetch_series_by_codes(provider_code, dataset_code, series_codes, max_nb_series=None,
+                          api_base_url=default_api_base_url):
+    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
+    searching by series codes.
 
-    Example: fetch_from_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
+    The `series_codes` parameter must be a non-empty `list` of series codes (non-empty `str`), like so:
+    `["EA19.1.0.0.0.ZUTN", "EU28.1.0.0.0.ZUTN"]`.
+    Instead of passing an empty `list`, please use the `fetch_series` function.
 
-    Return a Python Pandas `DataFrame`. A dataframe contains many time series.
+    Return a Python Pandas `DataFrame`.
 
-    If the number of time series is greater than the limit allowed by the Web API, this function reconstitutes data
-    by making many HTTP requests.
-
-    By default this function sets a limit of 3000 series, via the `dbnomics_client.default_limit` constant.
-    Pass `limit=None` explicitly to download an unlimited number of series.
-
-    If the `url` parameter is an URL of DB.nomics Web API (and not an URL of the website), the parameter `is_api_url`
-    must be set to `True`. By default it is `False`.
+    If `max_nb_series` is `None`, a default value of 50 series will be used.
     """
-    def get_nb_series():
-        return len(set(map(lambda e: e['code'], series_json_list)))
-    if not is_api_url:
-        url = website_url_to_api_url(url, api_base_url=api_base_url)
-    series_json_list = []
+    # Parameters validation
+    assert isinstance(series_codes, list), series_codes
+    assert series_codes, series_codes
+    assert all(isinstance(s, str) and s for s in series_codes), series_codes
+    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+    if api_base_url.endswith('/'):
+        api_base_url = api_base_url[:-1]
+
+    series_json_url = api_base_url + '/{}/{}?series_codes={}'.format(
+        provider_code, dataset_code, ",".join(series_codes))
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series, api_base_url=api_base_url)
+
+
+def fetch_series_by_dimensions(provider_code, dataset_code, dimensions, max_nb_series=None,
+                               api_base_url=default_api_base_url):
+    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
+    searching by dimensions.
+
+    The `dimensions` parameter must be a non-empty `dict` of dimensions (non-empty `list` of non-empty `str`), like so:
+    `{"freq": ["A", "M"], "country": ["FR"]}`.
+    Instead of passing an empty `dict`, please use the `fetch_series` function.
+
+    Return a Python Pandas `DataFrame`.
+
+    If `max_nb_series` is `None`, a default value of 50 series will be used.
+    """
+    # Parameters validation
+    assert isinstance(dimensions, dict), dimensions
+    assert dimensions, dimensions
+    assert all(isinstance(s, str) and s for s in dimensions.keys()), dimensions
+    assert all(
+        isinstance(l, list) and l and all(isinstance(s, str) and s for s in l)
+        for l in dimensions.values()
+    ), dimensions
+    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+    if api_base_url.endswith('/'):
+        api_base_url = api_base_url[:-1]
+
+    series_json_url = api_base_url + '/{}/{}?dimensions={}'.format(
+        provider_code, dataset_code, json.dumps(dimensions))
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series, api_base_url=api_base_url)
+
+
+def fetch_series_by_url(url, max_nb_series=None, api_base_url=default_api_base_url):
+    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
+    giving the URL of the series as found on the website (search for "API link" links).
+
+    Example: `fetch_series_by_url("https://api.next.nomics.world/Eurostat/ei_bsin_q_r2")`
+
+    Return a Python Pandas `DataFrame`.
+
+    If `max_nb_series` is `None`, a default value of 50 series will be used.
+    """
+    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+
+    series_list = []
+    offset = 0
+    dataset_code = UnboundLocalError
+    dataset_name = UnboundLocalError
+
     while True:
-        dataset_json, series_json_page = fetch_series_json_page(url, offset=get_nb_series())
-        dataset_code = dataset_json["code"]
-        dataset_name = dataset_json.get("name")
-        series_json_list.extend(list(iter_column_json_dicts(series_json_page['data'], dataset_code, dataset_name)))
-        nb_series = get_nb_series()
-        if (limit is not None and nb_series >= limit) or nb_series == series_json_page['num_found']:
+        response_json = fetch_series_json_page(url, offset=offset)
+
+        dataset_json = response_json["dataset"]
+
+        response_dataset_code = dataset_json["code"]
+        if dataset_code is UnboundLocalError:
+            dataset_code = response_dataset_code
+        else:
+            assert dataset_code == response_dataset_code, (dataset_code, response_dataset_code)
+
+        response_dataset_name = dataset_json.get("name")
+        if dataset_name is UnboundLocalError:
+            dataset_name = response_dataset_name
+        else:
+            assert dataset_name == response_dataset_name, (dataset_name, response_dataset_name)
+
+        series_json_page = response_json["series"]
+        num_found = series_json_page['num_found']
+        if max_nb_series is None and num_found > default_max_nb_series:
+            raise TooManySeries(num_found, max_nb_series)
+
+        series_list.extend(series_json_page['data'])
+        nb_series = len(series_list)
+
+        # Stop if we have enough series.
+        if max_nb_series is not None and nb_series >= max_nb_series:
+            # Do not respond more series than the asked max_nb_series.
+            if nb_series > max_nb_series:
+                series_list = series_list[:max_nb_series]
             break
-    return pd.DataFrame(series_json_list)
 
+        # Stop if we downloaded all the series.
+        assert nb_series <= num_found, (nb_series, num_found)  # Can't download more series than num_found.
+        if nb_series == num_found:
+            break
 
-def fetch_series_json_page(series_json_url, offset):
-    page_url = '{}{}offset={}'.format(
-        series_json_url,
-        '&' if '?' in series_json_url else '?',
-        offset,
-    )
-    log.debug(page_url)
-    response = requests.get(page_url)
-    try:
-        response_json = response.json()
-    except ValueError as exc:
-        raise ValueError('Could not parse JSON payload of response because: {}. Response text: {}'.format(
-            exc, response.text))
-    if response.status_code == 404:
-        raise ValueError("Could not fetch data from URL {} because: {}".format(page_url, response_json['message']))
-    api_version = response_json['_meta']['python_project_version']
-    if not api_version_matches(api_version):
-        raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}, < {}'.format(
-            api_version, api_min_version, api_max_version))
+        offset += nb_series
 
-    series_json_page = response_json.get('series')
-    if series_json_page is None:
-        raise ValueError('Could not find "series" key in response JSON payload. URL = {!r}, received: {!r}'.format(
-            page_url, response_json))
-    assert series_json_page['offset'] == offset, (series_json_page['offset'], offset)
-    return response_json['dataset'], series_json_page
-
-
-def iter_column_json_dicts(seq, dataset_code, dataset_name):
-    """Transform the `list` of `dict` received by DB.nomics Web API to a `list` of `dict` compatible with Python Pandas,
-    in order to build a `DataFrame`.
-
-    >>> list(iter_column_json_dicts([
-    ...     {
-    ...         "code": "s1",
-    ...         "FREQ": "M",
-    ...         "period": ["2010", "2011", "2012"],
-    ...         "value": [1, 2, 3],
-    ...     },
-    ...     {
-    ...         "code": "s2",
-    ...         "FREQ": "Q",
-    ...         "period": ["2010"],
-    ...         "value": [999],
-    ...     }
-    ... ], "ABCD", "Very cool dataset"))
-    [{'code': 's1', 'FREQ': 'M', 'period': '2010', 'value': 1, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}, {'code': 's1', 'FREQ': 'M', 'period': '2011', 'value': 2, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}, {'code': 's1', 'FREQ': 'M', 'period': '2012', 'value': 3, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}, {'code': 's2', 'FREQ': 'Q', 'period': '2010', 'value': 999, 'dataset_code': 'ABCD', 'dataset_name': 'Very cool dataset'}]
-    """
-    def iter_expanded_dicts(d):
-        assert "period" in d, d
-        assert "value" in d, d
-        assert len(d["period"]) == len(d["value"]), d
-        keys_with_list = [
-            k
-            for k, v in d.items()
-            if isinstance(v, list)
-        ]
-        for keys_with_list_values in zip(*(d[k] for k in keys_with_list)):
-            column_json = d.copy()
-            column_json["dataset_code"] = dataset_code
-            if dataset_name:
-                column_json["dataset_name"] = dataset_name
-            for idx, k in enumerate(keys_with_list):
-                column_json[k] = keys_with_list_values[idx]
-            yield column_json
-
-    return itertools.chain.from_iterable(map(iter_expanded_dicts, seq))
-
-
-# URLs
-
-
-def dimensions_to_dimension_params(dimensions):
-    """Transform a single query string parameter (named "dimensions") to many parameters (named "dimension").
-
-    >>> dimensions_to_dimension_params('k1:v1')
-    ['k1:v1']
-    >>> dimensions_to_dimension_params('k1:v1,')
-    ['k1:v1']
-    >>> dimensions_to_dimension_params('k1:v1a,v1b')
-    ['k1:v1a', 'k1:v1b']
-    >>> dimensions_to_dimension_params('k1:v1;k2:v2')
-    ['k1:v1', 'k2:v2']
-    >>> dimensions_to_dimension_params('k1:v1;k2:v2;')
-    ['k1:v1', 'k2:v2']
-    >>> dimensions_to_dimension_params('k1:v1a,v1b;k2:v2a,v2b')
-    ['k1:v1a', 'k1:v1b', 'k2:v2a', 'k2:v2b']
-    """
-    def iter_dimension_params():
-        for dimension in list(filter(None, dimensions.split(';'))):
-            k, values = list(filter(None, dimension.split(':')))
-            for v in list(filter(None, values.split(','))):
-                yield '{}:{}'.format(k, v)
-
-    return list(iter_dimension_params())
-
-
-def website_url_to_api_url(url, api_base_url=default_api_base_url):
-    """Transform the URL of a dataset on DB.nomics website to the URL in the Web API
-    endpoint `/{provider_code}/{dataset_code}`.
-
-    >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2")
-    'https://api.next.nomics.world/Eurostat/ei_bsin_q_r2'
-    >>> website_url_to_api_url("https://localhost:8000/Eurostat/ei_bsin_q_r2", api_base_url="http://localhost:5000")
-    'http://localhost:5000/Eurostat/ei_bsin_q_r2'
-    >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2?dimensions=indic%3ABS-FLP6-PC")
-    'https://api.next.nomics.world/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP6-PC'
-    >>> website_url_to_api_url("https://next.nomics.world/Eurostat/ei_bsin_q_r2?dimensions=indic%3ABS-FLP2-PC%2CBS-FLP6-PC")
-    'https://api.next.nomics.world/Eurostat/ei_bsin_q_r2?dimension=indic%3ABS-FLP2-PC&dimension=indic%3ABS-FLP6-PC'
-    """
-    api_base_url_parts = urlsplit(api_base_url)
-    url_split_result = urlsplit(url)
-    url_parts = list(url_split_result)
-    url_parts[0] = api_base_url_parts[0]
-    url_parts[1] = api_base_url_parts[1]
-    url_parts[2] = url_split_result.path
-    query = parse_qs(url_split_result.query)
-    dimensions = query.get("dimensions")
-    if dimensions:
-        if len(dimensions) > 1:
-            raise ValueError(
-                "URL should contain zero or one query string parameter named 'dimensions', but {} were found.".format(len(dimensions)))
-        url_parts[3] = "&".join(
-            'dimension=' + quote(dimension_param)
-            for dimension_param in dimensions_to_dimension_params(dimensions[0])
-        )
-    return urlunsplit(url_parts)
+    dataframe = pd.concat(map(pd.DataFrame, series_list))
+    dataframe["dataset_code"] = dataset_code
+    dataframe["dataset_name"] = dataset_name
+    return dataframe

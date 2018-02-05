@@ -1,5 +1,5 @@
-# dbnomics-python-client -- Access DB.nomics time series from Python
-# By: DB.nomics Team <christophe.benz@cepremap.org>
+# dbnomics-python-client -- Access DBnomics time series from Python
+# By: DBnomics Team <christophe.benz@cepremap.org>
 #
 # Copyright (C) 2017 Cepremap
 # https://git.nomics.world/dbnomics/dbnomics-python-client
@@ -34,15 +34,15 @@ with codecs.open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 setup(
-    name='DB.nomics-Client',
+    name='DBnomics-Client',
     version='0.0.2',
 
-    description='DB.nomics Web API Client',
+    description='DBnomics Web API Client',
     long_description=LONG_DESCRIPTION,
 
     url='https://git.nomics.world/dbnomics/dbnomics-python-client',
 
-    author='DB.nomics Team',
+    author='DBnomics Team',
     author_email='christophe.benz@cepremap.org',
 
     license='AGPLv3',
