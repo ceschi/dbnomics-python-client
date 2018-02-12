@@ -25,7 +25,7 @@ pip install --editable .
 If you plan to use a local Web API, running on the port 5000, you'll need to use the `api_base_url` parameter of the `fetch` function, like this:
 
 ```python
-dataframe = fetch(
+dataframe = fetch_series_by_codes(
     api_base_url='http://localhost:5000',
     provider_code='Eurostat',
     dataset_code='nrg_134m',
