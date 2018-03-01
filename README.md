@@ -22,12 +22,19 @@ pip install --editable .
 
 ## Development
 
-If you plan to use a local Web API, running on the port 5000, you'll need to use the `api_base_url` parameter of the `fetch` function, like this:
+If you plan to use a local Web API, running on the port 5000, you'll need to use the `api_base_url` parameter of the `fetch_*` functions, like this:
 
 ```python
-dataframe = fetch_series_by_codes(
+dataframe = fetch_series(
     api_base_url='http://localhost:5000',
-    provider_code='Eurostat',
-    dataset_code='nrg_134m',
+    provider_code='AMECO',
+    dataset_code='ZUTN',
 )
+```
+
+Or set the default API URL by [monkey-patching](https://en.wikipedia.org/wiki/Monkey_patch) the `dbnomics` module, like this:
+
+```python
+import dbnomics
+dbnomics.default_api_base_url = "http://localhost:5000"
 ```

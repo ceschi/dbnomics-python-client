@@ -57,50 +57,62 @@ class TooManySeries(Exception):
         super().__init__(message)
 
 
-def fetch_series(provider_code, dataset_code, max_nb_series=None, api_base_url=default_api_base_url):
+def fetch_series(provider_code, dataset_code, series_code=None, max_nb_series=None, api_base_url=None):
     """Download time series of a particular dataset in a particular provider, from DBnomics Web API.
 
-    Return a Python Pandas `DataFrame`.
-
-    If `max_nb_series` is `None`, a default value of 50 series will be used.
-    """
-    # Parameters validation
-    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
-    if api_base_url.endswith('/'):
-        api_base_url = api_base_url[:-1]
-
-    series_json_url = api_base_url + '/{}/{}'.format(provider_code, dataset_code)
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series, api_base_url=api_base_url)
-
-
-def fetch_series_by_codes(provider_code, dataset_code, series_codes, max_nb_series=None,
-                          api_base_url=default_api_base_url):
-    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
-    searching by series codes.
-
-    The `series_codes` parameter must be a non-empty `list` of series codes (non-empty `str`), like so:
-    `["EA19.1.0.0.0.ZUTN", "EU28.1.0.0.0.ZUTN"]`.
-    Instead of passing an empty `list`, please use the `fetch_series` function.
+    If `series_code` is given as a string, return this series.
 
     Return a Python Pandas `DataFrame`.
 
     If `max_nb_series` is `None`, a default value of 50 series will be used.
+
+    Examples:
+    - fetch_series("AMECO", "ZUTN")
+    - fetch_series("AMECO", "ZUTN", "EA19.1.0.0.0.ZUTN")
     """
     # Parameters validation
-    assert isinstance(series_codes, list), series_codes
-    assert series_codes, series_codes
-    assert all(isinstance(s, str) and s for s in series_codes), series_codes
     assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+    if api_base_url is None:
+        api_base_url = default_api_base_url
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
 
-    series_json_url = api_base_url + '/{}/{}?series_codes={}'.format(
-        provider_code, dataset_code, ",".join(series_codes))
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series, api_base_url=api_base_url)
+    series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}'.format(provider_code, dataset_code) \
+        if series_code is None \
+        else api_base_url + '/series?series_ids={}/{}/{}'.format(provider_code, dataset_code, series_code)
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
+
+
+def fetch_series_by_ids(series_ids, max_nb_series=None, api_base_url=None):
+    """Download time series from DBnomics Web API, given a list of series IDs.
+
+    The `series_ids` parameter must be a non-empty `list` of series IDs.
+    A series ID is a tuple like `(provider_code, dataset_code, series_code)`.
+
+    Return a Python Pandas `DataFrame`.
+
+    If `max_nb_series` is `None`, a default value of 50 series will be used.
+
+    Example: fetch_series_by_ids([("AMECO", "ZUTN", "EA19.1.0.0.0.ZUTN"), ("AMECO", "ZUTN", "EU28.1.0.0.0.ZUTN")])
+    """
+    # Parameters validation
+    assert isinstance(series_ids, list) and series_ids, series_ids
+    assert all(isinstance(series_id, (tuple, list)) and len(series_id) == 3 for series_id in series_ids), series_ids
+    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+    if api_base_url is None:
+        api_base_url = default_api_base_url
+    if api_base_url.endswith('/'):
+        api_base_url = api_base_url[:-1]
+
+    series_ids_str = ",".join(
+        map(lambda series_id: "/".join(series_id), series_ids)
+    )
+    series_json_url = api_base_url + '/series?series_ids={}'.format(series_ids_str)
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
 
 
 def fetch_series_by_dimensions(provider_code, dataset_code, dimensions, max_nb_series=None,
-                               api_base_url=default_api_base_url):
+                               api_base_url=None):
     """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
     searching by dimensions.
 
@@ -111,6 +123,8 @@ def fetch_series_by_dimensions(provider_code, dataset_code, dimensions, max_nb_s
     Return a Python Pandas `DataFrame`.
 
     If `max_nb_series` is `None`, a default value of 50 series will be used.
+
+    Example: `fetch_series_by_dimensions("AMECO", "ZUTN", {"geo": ["fra"]})`
     """
     # Parameters validation
     assert isinstance(dimensions, dict), dimensions
@@ -121,24 +135,27 @@ def fetch_series_by_dimensions(provider_code, dataset_code, dimensions, max_nb_s
         for l in dimensions.values()
     ), dimensions
     assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+    if api_base_url is None:
+        api_base_url = default_api_base_url
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
 
-    series_json_url = api_base_url + '/{}/{}?dimensions={}'.format(
+    series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}&dimensions={}'.format(
         provider_code, dataset_code, json.dumps(dimensions))
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series, api_base_url=api_base_url)
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
 
 
-def fetch_series_by_url(url, max_nb_series=None, api_base_url=default_api_base_url):
+def fetch_series_by_url(url, max_nb_series=None):
     """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
     giving the URL of the series as found on the website (search for "API link" links).
-
-    Example: `fetch_series_by_url("https://api.next.nomics.world/Eurostat/ei_bsin_q_r2")`
 
     Return a Python Pandas `DataFrame`.
 
     If `max_nb_series` is `None`, a default value of 50 series will be used.
+
+    Example: `fetch_series_by_url("https://api.next.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")`
     """
+    # Parameters validation
     assert max_nb_series is None or max_nb_series >= 1, max_nb_series
 
     series_list = []
