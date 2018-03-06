@@ -29,8 +29,8 @@ This will probably never be useful, unless somebody deploys a new instance of DB
 
 
 import json
-
 import pandas as pd
+import urllib.parse
 
 from .internals import api_version_matches, fetch_series_json_page
 
@@ -44,11 +44,12 @@ class TooManySeries(Exception):
         message = (
             "DBnomics Web API found {num_found} series matching your request, " +
             (
-                "but you gave the argument 'max_nb_series={max_nb_series}'."
+                "but you passed the argument 'max_nb_series={max_nb_series}'."
                 if max_nb_series is not None
-                else "but you did not give the argument 'max_nb_series', so a default value of {default_max_nb_series} was used."
+                else "but you did not pass any value for the 'max_nb_series' argument, "
+                     "so a default value of {default_max_nb_series} was used."
             ) +
-            " Please give a higher value (at least {num_found}), and try again."
+            " Please give a higher value (at least max_nb_series={num_found}), and try again."
         ).format(
             default_max_nb_series=default_max_nb_series,
             max_nb_series=max_nb_series,
@@ -142,6 +143,47 @@ def fetch_series_by_dimensions(provider_code, dataset_code, dimensions, max_nb_s
 
     series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}&dimensions={}'.format(
         provider_code, dataset_code, json.dumps(dimensions))
+    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
+
+
+def fetch_series_by_sdmx_filter(provider_code, dataset_code, sdmx_filter, max_nb_series=None, api_base_url=None):
+    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
+    given a SDMX filter.
+
+    Some providers are not compatible with SDMX filters.
+    To be compatible, providers series codes must be composed of dimensions values codes, separated by a '.',
+    like `M.QA.PCPIEC_WT`.
+    For example, "IMF", "Eurostat" and "INSEE" are compatible providers, but "Bank of England" is not.
+
+    A SDMX filter can designate many series, whereas a series code designates one series. It allows to:
+    - remove a constraint on a dimension, for example `M..PCPIEC_WT`;
+    - enumerate many values for a dimension, separated by a '+', for example `M.FR+DE.PCPIEC_WT`;
+    - combine these possibilities many times in the same SDMX filter.
+
+    If the original series code is passed to the `sdmx_filter` parameter, this function will behave like `fetch_series`,
+    because the series code can be considered as a SDMX filter which all dimensions are constrained.
+
+    Also, if the rightmost dimension value code is removed, then the final '.' can be removed too: `A.FR.` = `A.FR`.
+
+    Return a Python Pandas `DataFrame`.
+
+    If `max_nb_series` is `None`, a default value of 50 series will be used.
+
+    Examples:
+    - fetch_series_by_sdmx_filter("IMF", "CPI", "M.QA.PCPIEC_WT")
+    - fetch_series_by_sdmx_filter("IMF", "CPI", "M.FR+DE.PCPIEC_WT")
+    - fetch_series_by_sdmx_filter("IMF", "CPI", ".FR.PCPIEC_WT")
+    - fetch_series_by_sdmx_filter("IMF", "CPI", "M..PCPIEC_IX+PCPIA_IX")
+    """
+    # Parameters validation
+    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
+    if api_base_url is None:
+        api_base_url = default_api_base_url
+    if api_base_url.endswith('/'):
+        api_base_url = api_base_url[:-1]
+
+    series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}&sdmx_filter={}' \
+        .format(provider_code, dataset_code, urllib.parse.quote(sdmx_filter))
     return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
 
 
