@@ -58,171 +58,131 @@ class TooManySeries(Exception):
         super().__init__(message)
 
 
-def fetch_series(provider_code, dataset_code, series_code=None, max_nb_series=None, api_base_url=None):
-    """Download time series of a particular dataset in a particular provider, from DBnomics Web API.
+def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_mask=None, series_ids=None,
+                 max_nb_series=None, api_base_url=None):
+    """Download time series from DBnomics Web API. According to the given parameters, the search filters are different.
 
-    If `series_code` is given as a string, return this series.
-
-    Return a Python Pandas `DataFrame`.
-
-    If `max_nb_series` is `None`, a default value of 50 series will be used.
-
-    Examples:
-    - fetch_series("AMECO", "ZUTN")
-    - fetch_series("AMECO", "ZUTN", "EA19.1.0.0.0.ZUTN")
-    """
-    # Parameters validation
-    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
-    if api_base_url is None:
-        api_base_url = default_api_base_url
-    if api_base_url.endswith('/'):
-        api_base_url = api_base_url[:-1]
-
-    series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}'.format(provider_code, dataset_code) \
-        if series_code is None \
-        else api_base_url + '/series?series_ids={}/{}/{}'.format(provider_code, dataset_code, series_code)
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
-
-
-def fetch_series_by_ids(series_ids, max_nb_series=None, api_base_url=None):
-    """Download time series from DBnomics Web API, given a list of series IDs.
-
-    The `series_ids` parameter must be a non-empty `list` of series IDs.
-    A series ID is a tuple like `(provider_code, dataset_code, series_code)`.
-
-    Return a Python Pandas `DataFrame`.
-
-    If `max_nb_series` is `None`, a default value of 50 series will be used.
-
-    Example: fetch_series_by_ids([("AMECO", "ZUTN", "EA19.1.0.0.0.ZUTN"), ("AMECO", "ZUTN", "EU28.1.0.0.0.ZUTN")])
-    """
-    # Parameters validation
-    assert isinstance(series_ids, list) and series_ids, series_ids
-    assert all(isinstance(series_id, (tuple, list)) and len(series_id) == 3 for series_id in series_ids), series_ids
-    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
-    if api_base_url is None:
-        api_base_url = default_api_base_url
-    if api_base_url.endswith('/'):
-        api_base_url = api_base_url[:-1]
-
-    series_ids_str = ",".join(
-        map(lambda series_id: "/".join(series_id), series_ids)
-    )
-    series_json_url = api_base_url + '/series?series_ids={}'.format(series_ids_str)
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
-
-
-def fetch_series_by_dimensions(provider_code, dataset_code, dimensions, max_nb_series=None,
-                               api_base_url=None):
-    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
-    searching by dimensions.
-
-    The `dimensions` parameter must be a non-empty `dict` of dimensions (non-empty `list` of non-empty `str`), like so:
+    If not None, `dimensions` parameter must be a `dict` of dimensions (`list` of `str`), like so:
     `{"freq": ["A", "M"], "country": ["FR"]}`.
-    Instead of passing an empty `dict`, please use the `fetch_series` function.
 
-    Return a Python Pandas `DataFrame`.
-
-    If `max_nb_series` is `None`, a default value of 50 series will be used.
-
-    Example: `fetch_series_by_dimensions("AMECO", "ZUTN", {"geo": ["fra"]})`
-    """
-    # Parameters validation
-    assert isinstance(dimensions, dict), dimensions
-    assert dimensions, dimensions
-    assert all(isinstance(s, str) and s for s in dimensions.keys()), dimensions
-    assert all(
-        isinstance(l, list) and l and all(isinstance(s, str) and s for s in l)
-        for l in dimensions.values()
-    ), dimensions
-    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
-    if api_base_url is None:
-        api_base_url = default_api_base_url
-    if api_base_url.endswith('/'):
-        api_base_url = api_base_url[:-1]
-
-    series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}&dimensions={}'.format(
-        provider_code, dataset_code, json.dumps(dimensions))
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
-
-
-def fetch_series_by_sdmx_filter(provider_code, dataset_code, sdmx_filter, max_nb_series=None, api_base_url=None):
-    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
-    given a SDMX filter.
-
-    Some providers are not compatible with SDMX filters.
+    If not None, `code_mask` must be a `str`.
+    Some providers are not compatible with series code masks.
+    The full list is here: https://git.nomics.world/dbnomics/dbnomics-api/blob/master/dbnomics_api/application.cfg
+    (see the SERIES_CODE_MASK_COMPATIBLE_PROVIDERS variable).
     To be compatible, providers series codes must be composed of dimensions values codes, separated by a '.',
     like `M.QA.PCPIEC_WT`.
     For example, "IMF", "Eurostat" and "INSEE" are compatible providers, but "Bank of England" is not.
 
-    A SDMX filter can designate many series, whereas a series code designates one series. It allows to:
+    A code mask can designate many series, whereas a series code designates one series. It allows to:
     - remove a constraint on a dimension, for example `M..PCPIEC_WT`;
     - enumerate many values for a dimension, separated by a '+', for example `M.FR+DE.PCPIEC_WT`;
     - combine these possibilities many times in the same SDMX filter.
 
-    If the original series code is passed to the `sdmx_filter` parameter, this function will behave like `fetch_series`,
-    because the series code can be considered as a SDMX filter which all dimensions are constrained.
+    If the rightmost dimension value code is removed, then the final '.' can be removed too: `A.FR.` = `A.FR`.
 
-    Also, if the rightmost dimension value code is removed, then the final '.' can be removed too: `A.FR.` = `A.FR`.
+    If not None, `series_ids` parameter must be a non-empty `list` of series IDs.
+    A series ID is a string formatted like `provider_code/dataset_code/series_code`.
 
     Return a Python Pandas `DataFrame`.
 
     If `max_nb_series` is `None`, a default value of 50 series will be used.
 
     Examples:
-    - fetch_series_by_sdmx_filter("IMF", "CPI", "M.QA.PCPIEC_WT")
-    - fetch_series_by_sdmx_filter("IMF", "CPI", "M.FR+DE.PCPIEC_WT")
-    - fetch_series_by_sdmx_filter("IMF", "CPI", ".FR.PCPIEC_WT")
-    - fetch_series_by_sdmx_filter("IMF", "CPI", "M..PCPIEC_IX+PCPIA_IX")
+
+    - fetch one series:
+      fetch_series("AMECO/ZUTN/EA19.1.0.0.0.ZUTN")
+      /series?series_ids=AMECO/ZUTN/EA19.1.0.0.0.ZUTN
+
+    - fetch all the series of a dataset:
+      fetch_series("AMECO", "ZUTN")
+      /series?provider_code=AMECO&dataset_code=ZUTN
+
+    - fetch many series from different datasets:
+      fetch_series(["AMECO/ZUTN/EA19.1.0.0.0.ZUTN", "AMECO/ZUTN/DNK.1.0.0.0.ZUTN", "IMF/CPI/A.AT.PCPIT_IX"])
+      /series?series_ids=AMECO/ZUTN/EA19.1.0.0.0.ZUTN,AMECO/ZUTN/DNK.1.0.0.0.ZUTN,IMF/CPI/A.AT.PCPIT_IX
+
+    - fetch many series from the same dataset, searching by dimension:
+      fetch_series("AMECO", "ZUTN", dimensions={"geo": ["dnk"]})
+      /series?provider_code=AMECO&dataset_code=ZUTN&dimensions={"geo": ["dnk"]}
+
+    - fetch many series from the same dataset, searching by code mask:
+      fetch_series("IMF", "CPI", code_mask="M.FR+DE.PCPIEC_WT")
+      fetch_series("IMF", "CPI", code_mask=".FR.PCPIEC_WT")
+      fetch_series("IMF", "CPI", code_mask="M..PCPIEC_IX+PCPIA_IX")
+      /series?provider_code=IMF&dataset_code=CPI&series_code_mask=M..PCPIEC_IX+PCPIA_IX
     """
     # Parameters validation
-    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
     if api_base_url is None:
         api_base_url = default_api_base_url
     if api_base_url.endswith('/'):
         api_base_url = api_base_url[:-1]
+    if dataset_code is None:
+        if isinstance(provider_code, list):
+            series_ids = provider_code
+            provider_code = None
+        elif isinstance(provider_code, str):
+            series_ids = [provider_code]
+            provider_code = None
 
-    series_json_url = api_base_url + '/series?provider_code={}&dataset_code={}&sdmx_filter={}' \
-        .format(provider_code, dataset_code, urllib.parse.quote(sdmx_filter))
-    return fetch_series_by_url(series_json_url, max_nb_series=max_nb_series)
+    if provider_code is not None and not isinstance(provider_code, str):
+        raise ValueError("`provider_code` parameter must be a string")
+    if dataset_code is not None and not isinstance(dataset_code, str):
+        raise ValueError("`dataset_code` parameter must be a string")
+    if dimensions is not None and not isinstance(dimensions, dict):
+        raise ValueError("`dimensions` parameter must be a dict")
+    if code_mask is not None and not isinstance(code_mask, str):
+        raise ValueError("`code_mask` parameter must be a string")
+    if series_ids is not None and (
+        not isinstance(series_ids, list) or
+        any(not isinstance(series_id, str) for series_id in series_ids)
+    ):
+        raise ValueError("`series_ids` parameter must be a list of strings")
+    if api_base_url is not None and not isinstance(api_base_url, str):
+        raise ValueError("`api_base_url` parameter must be a string")
+
+    series_base_url = api_base_url + '/series?'
+
+    if dimensions is not None:
+        if not provider_code or not dataset_code:
+            raise ValueError("When you filter with `dimensions`, you must specifiy `provider_code` and `dataset_code` "
+                             "as arguments of the function.")
+        api_link = series_base_url + 'provider_code={}&dataset_code={}&dimensions={}'.format(
+            provider_code, dataset_code, json.dumps(dimensions))
+        return fetch_series_by_api_link(api_link, max_nb_series)
+
+    if code_mask is not None:
+        if not provider_code or not dataset_code:
+            raise ValueError("When you filter with `code_mask`, you must specifiy `provider_code` and `dataset_code` "
+                             "as arguments of the function.")
+        api_link = series_base_url + 'provider_code={}&dataset_code={}&series_code_mask={}'.format(
+            provider_code, dataset_code, code_mask)
+        return fetch_series_by_api_link(api_link, max_nb_series)
+
+    if series_ids is not None:
+        if provider_code or dataset_code:
+            raise ValueError("When you filter with `code_mask`, you must not specifiy "
+                             "`provider_code` and `dataset_code` as arguments of the function.")
+        api_link = series_base_url + 'series_ids={}'.format(','.join(series_ids))
+        return fetch_series_by_api_link(api_link, max_nb_series)
+
+    # if provider_code and dataset_code:
+
+    raise NotImplementedError("Invalid combination of function arguments")
 
 
-def fetch_series_by_url(url, max_nb_series=None):
-    """Download time series of a particular dataset in a particular provider, from DBnomics Web API,
-    giving the URL of the series as found on the website (search for "API link" links).
+def fetch_series_by_api_link(api_link, max_nb_series=None):
+    """Fetch series given an "API link" URL.
 
-    Return a Python Pandas `DataFrame`.
-
-    If `max_nb_series` is `None`, a default value of 50 series will be used.
-
-    Example: `fetch_series_by_url("https://api.next.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")`
+    Example:
+      fetch_series(api_link="https://api.next.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")
     """
-    # Parameters validation
-    assert max_nb_series is None or max_nb_series >= 1, max_nb_series
-
     series_list = []
     offset = 0
-    dataset_code = UnboundLocalError
-    dataset_name = UnboundLocalError
 
     while True:
-        response_json = fetch_series_json_page(url, offset=offset)
-
-        dataset_json = response_json["dataset"]
-
-        response_dataset_code = dataset_json["code"]
-        if dataset_code is UnboundLocalError:
-            dataset_code = response_dataset_code
-        else:
-            assert dataset_code == response_dataset_code, (dataset_code, response_dataset_code)
-
-        response_dataset_name = dataset_json.get("name")
-        if dataset_name is UnboundLocalError:
-            dataset_name = response_dataset_name
-        else:
-            assert dataset_name == response_dataset_name, (dataset_name, response_dataset_name)
-
+        response_json = fetch_series_json_page(api_link, offset=offset)
         series_json_page = response_json["series"]
+
         num_found = series_json_page['num_found']
         if max_nb_series is None and num_found > default_max_nb_series:
             raise TooManySeries(num_found, max_nb_series)
@@ -245,6 +205,4 @@ def fetch_series_by_url(url, max_nb_series=None):
         offset += nb_series
 
     dataframe = pd.concat(map(pd.DataFrame, series_list))
-    dataframe["dataset_code"] = dataset_code
-    dataframe["dataset_name"] = dataset_name
     return dataframe
