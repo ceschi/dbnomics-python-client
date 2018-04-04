@@ -91,25 +91,20 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
 
     - fetch one series:
       fetch_series("AMECO/ZUTN/EA19.1.0.0.0.ZUTN")
-      /series?series_ids=AMECO/ZUTN/EA19.1.0.0.0.ZUTN
 
     - fetch all the series of a dataset:
       fetch_series("AMECO", "ZUTN")
-      /series?provider_code=AMECO&dataset_code=ZUTN
 
     - fetch many series from different datasets:
       fetch_series(["AMECO/ZUTN/EA19.1.0.0.0.ZUTN", "AMECO/ZUTN/DNK.1.0.0.0.ZUTN", "IMF/CPI/A.AT.PCPIT_IX"])
-      /series?series_ids=AMECO/ZUTN/EA19.1.0.0.0.ZUTN,AMECO/ZUTN/DNK.1.0.0.0.ZUTN,IMF/CPI/A.AT.PCPIT_IX
 
     - fetch many series from the same dataset, searching by dimension:
       fetch_series("AMECO", "ZUTN", dimensions={"geo": ["dnk"]})
-      /series?provider_code=AMECO&dataset_code=ZUTN&dimensions={"geo": ["dnk"]}
 
     - fetch many series from the same dataset, searching by code mask:
       fetch_series("IMF", "CPI", code_mask="M.FR+DE.PCPIEC_WT")
       fetch_series("IMF", "CPI", code_mask=".FR.PCPIEC_WT")
       fetch_series("IMF", "CPI", code_mask="M..PCPIEC_IX+PCPIA_IX")
-      /series?provider_code=IMF&dataset_code=CPI&series_code_mask=M..PCPIEC_IX+PCPIA_IX
     """
     # Parameters validation
     if api_base_url is None:
@@ -165,9 +160,7 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
         api_link = series_base_url + 'series_ids={}'.format(','.join(series_ids))
         return fetch_series_by_api_link(api_link, max_nb_series)
 
-    # if provider_code and dataset_code:
-
-    raise NotImplementedError("Invalid combination of function arguments")
+    raise ValueError("Invalid combination of function arguments")
 
 
 def fetch_series_by_api_link(api_link, max_nb_series=None):
