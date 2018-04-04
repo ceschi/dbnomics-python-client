@@ -199,3 +199,8 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
 
     dataframe = pd.concat(map(pd.DataFrame, series_list))
     return dataframe
+
+
+def __enable_development_mode():
+    global default_api_base_url
+    default_api_base_url = 'http://localhost:5000'
