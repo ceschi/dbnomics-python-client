@@ -27,6 +27,10 @@ The DBnomics Web API base URL can be customized by using the `api_base_url` para
 This will probably never be useful, unless somebody deploys a new instance of DBnomics under another domain name.
 """
 
+import platform
+python_major_version = platform.python_version_tuple()[0]
+if python_major_version < "3":
+    raise Exception("This package is compatible with Python 3, but version {} was detected.".format(python_major_version))
 
 import json
 import pandas as pd
