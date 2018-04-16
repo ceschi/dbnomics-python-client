@@ -63,7 +63,7 @@ class TooManySeries(Exception):
 
 
 def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_mask=None, series_ids=None,
-                 max_nb_series=None, api_base_url=None):
+                 max_nb_series=None, period_to_datetime=True, api_base_url=None):
     """Download time series from DBnomics Web API. According to the given parameters, the search filters are different.
 
     If not None, `dimensions` parameter must be a `dict` of dimensions (`list` of `str`), like so:
@@ -90,6 +90,9 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
     Return a Python Pandas `DataFrame`.
 
     If `max_nb_series` is `None`, a default value of 50 series will be used.
+
+    If `period_to_datetime` is `True` (default), the `period` column of the `DataFrame` is converted to `datetime`.
+    Otherwise the original `str` from the web API is kept as-is.
 
     Examples:
 
@@ -147,7 +150,7 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
                              "as arguments of the function.")
         api_link = series_base_url + 'provider_code={}&dataset_code={}&dimensions={}'.format(
             provider_code, dataset_code, json.dumps(dimensions))
-        return fetch_series_by_api_link(api_link, max_nb_series)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series, period_to_datetime=period_to_datetime)
 
     if code_mask is not None:
         if not provider_code or not dataset_code:
@@ -155,19 +158,19 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
                              "as arguments of the function.")
         api_link = series_base_url + 'provider_code={}&dataset_code={}&series_code_mask={}'.format(
             provider_code, dataset_code, code_mask)
-        return fetch_series_by_api_link(api_link, max_nb_series)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series, period_to_datetime=period_to_datetime)
 
     if series_ids is not None:
         if provider_code or dataset_code:
             raise ValueError("When you filter with `code_mask`, you must not specifiy "
                              "`provider_code` and `dataset_code` as arguments of the function.")
         api_link = series_base_url + 'series_ids={}'.format(','.join(series_ids))
-        return fetch_series_by_api_link(api_link, max_nb_series)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series, period_to_datetime=period_to_datetime)
 
     raise ValueError("Invalid combination of function arguments")
 
 
-def fetch_series_by_api_link(api_link, max_nb_series=None):
+def fetch_series_by_api_link(api_link, max_nb_series=None, period_to_datetime=True):
     """Fetch series given an "API link" URL.
 
     Example:
@@ -175,7 +178,8 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
     """
     def iter_series(series_list):
         for series in series_list:
-            series["period"] = list(map(pd.to_datetime, series["period"]))
+            if period_to_datetime:
+                series["period"] = list(map(pd.to_datetime, series["period"]))
             yield series
 
     series_list = []
