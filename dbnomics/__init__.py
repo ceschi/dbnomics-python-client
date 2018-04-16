@@ -173,6 +173,11 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
     Example:
       fetch_series(api_link="https://api.next.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")
     """
+    def iter_series(series_list):
+        for series in series_list:
+            series["period"] = list(map(pd.to_datetime, series["period"]))
+            yield series
+
     series_list = []
     offset = 0
 
@@ -184,7 +189,7 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
         if max_nb_series is None and num_found > default_max_nb_series:
             raise TooManySeries(num_found, max_nb_series)
 
-        series_list.extend(series_json_page['data'])
+        series_list.extend(iter_series(series_json_page['data']))
         nb_series = len(series_list)
 
         # Stop if we have enough series.
