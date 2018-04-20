@@ -24,7 +24,7 @@ import requests
 import semver
 
 api_min_version = '0.14.0'
-api_max_version = '0.17.0'
+api_max_version = '0.18.0'
 log = logging.getLogger(__name__)
 
 
