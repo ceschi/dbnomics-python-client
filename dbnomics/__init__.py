@@ -210,8 +210,9 @@ def fetch_series_by_api_link(api_link, max_nb_series=None, period_to_datetime=Tr
 
         offset += nb_series
 
-    dataframe = pd.concat(map(pd.DataFrame, series_list))
-    return dataframe
+    return pd.concat(map(pd.DataFrame, series_list)) \
+        if series_list \
+        else pd.DataFrame()
 
 
 def __enable_development_mode():
