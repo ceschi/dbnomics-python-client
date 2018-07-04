@@ -36,7 +36,7 @@ import json
 import pandas as pd
 import urllib.parse
 
-from .internals import api_version_matches, fetch_series_json_page
+from .internals import fetch_series_json_page
 
 
 default_api_base_url = 'https://api.next.nomics.world'

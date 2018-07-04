@@ -19,18 +19,14 @@
 
 
 import logging
+import warnings
 
 import requests
 import semver
 
 api_min_version = '0.14.0'
-api_max_version = '0.18.0'
+api_max_version = '0.21.0'
 log = logging.getLogger(__name__)
-
-
-def api_version_matches(api_version):
-    return semver.match(api_version, ">=" + api_min_version) and \
-        semver.match(api_version, "<" + api_max_version)
 
 
 def fetch_series_json_page(series_json_url, offset):
@@ -53,9 +49,12 @@ def fetch_series_json_page(series_json_url, offset):
             page_url, response_json['error_description']))
 
     api_version = response_json['_meta']['python_project_version']
-    if not api_version_matches(api_version):
-        raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}, < {}'.format(
-            api_version, api_min_version, api_max_version))
+    if not semver.match(api_version, ">=" + api_min_version):
+        raise ValueError('Web API version is {!r}, but this version of the Python client is expecting >= {}'.format(
+            api_version, api_min_version))
+    if not semver.match(api_version, "<" + api_max_version):
+        warnings.warn('Web API version is {!r}, but this version of the Python client is expecting < {}'.format(
+            api_version, api_max_version))
 
     error_description = response_json.get('error_description')
     if error_description is not None:
