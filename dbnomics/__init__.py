@@ -39,7 +39,7 @@ import urllib.parse
 from .internals import fetch_series_json_page
 
 
-default_api_base_url = 'https://api.next.nomics.world'
+default_api_base_url = 'https://api.db.nomics.world'
 default_max_nb_series = 50
 
 
@@ -174,7 +174,7 @@ def fetch_series_by_api_link(api_link, max_nb_series=None, period_to_datetime=Tr
     """Fetch series given an "API link" URL.
 
     Example:
-      fetch_series(api_link="https://api.next.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")
+      fetch_series(api_link="https://api.db.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")
     """
     def iter_series(series_list):
         for series in series_list:
