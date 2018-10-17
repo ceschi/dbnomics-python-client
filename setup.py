@@ -35,7 +35,7 @@ with codecs.open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='DBnomics',
-    version='0.2.1',
+    version='0.3.0',
 
     description='DBnomics Web API Client',
     long_description=LONG_DESCRIPTION,
@@ -77,6 +77,7 @@ setup(
     install_requires=[
         'requests >= 2.18.4',
         'pandas >= 0.21',
+        'toolz',
         'semver',
     ],
 

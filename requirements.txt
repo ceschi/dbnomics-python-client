@@ -1,3 +1,4 @@
 --editable .
 altair
+toolz
 vega

@@ -33,8 +33,10 @@ if python_major_version < "3":
     raise Exception("This package is compatible with Python 3, but version {} was detected.".format(python_major_version))
 
 import json
-import pandas as pd
 import urllib.parse
+
+import pandas as pd
+from toolz import assoc
 
 from .internals import fetch_series_json_page
 
@@ -63,7 +65,7 @@ class TooManySeries(Exception):
 
 
 def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_mask=None, series_ids=None,
-                 max_nb_series=None, period_to_datetime=True, api_base_url=None):
+                 max_nb_series=None, api_base_url=None):
     """Download time series from DBnomics Web API. According to the given parameters, the search filters are different.
 
     If not None, `dimensions` parameter must be a `dict` of dimensions (`list` of `str`), like so:
@@ -90,9 +92,6 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
     Return a Python Pandas `DataFrame`.
 
     If `max_nb_series` is `None`, a default value of 50 series will be used.
-
-    If `period_to_datetime` is `True` (default), the `period` column of the `DataFrame` is converted to `datetime`.
-    Otherwise the original `str` from the web API is kept as-is.
 
     Examples:
 
@@ -150,7 +149,7 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
                              "as arguments of the function.")
         api_link = series_base_url + 'provider_code={}&dataset_code={}&dimensions={}'.format(
             provider_code, dataset_code, json.dumps(dimensions))
-        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series, period_to_datetime=period_to_datetime)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
 
     if code_mask is not None:
         if not provider_code or not dataset_code:
@@ -158,30 +157,24 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
                              "as arguments of the function.")
         api_link = series_base_url + 'provider_code={}&dataset_code={}&series_code_mask={}'.format(
             provider_code, dataset_code, code_mask)
-        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series, period_to_datetime=period_to_datetime)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
 
     if series_ids is not None:
         if provider_code or dataset_code:
             raise ValueError("When you filter with `code_mask`, you must not specifiy "
                              "`provider_code` and `dataset_code` as arguments of the function.")
         api_link = series_base_url + 'series_ids={}'.format(','.join(series_ids))
-        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series, period_to_datetime=period_to_datetime)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
 
     raise ValueError("Invalid combination of function arguments")
 
 
-def fetch_series_by_api_link(api_link, max_nb_series=None, period_to_datetime=True):
+def fetch_series_by_api_link(api_link, max_nb_series=None):
     """Fetch series given an "API link" URL.
 
     Example:
       fetch_series(api_link="https://api.db.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")
     """
-    def iter_series(series_list):
-        for series in series_list:
-            if period_to_datetime:
-                series["period"] = list(map(pd.to_datetime, series["period"]))
-            yield series
-
     series_list = []
     offset = 0
 
@@ -193,7 +186,10 @@ def fetch_series_by_api_link(api_link, max_nb_series=None, period_to_datetime=Tr
         if max_nb_series is None and num_found > default_max_nb_series:
             raise TooManySeries(num_found, max_nb_series)
 
-        series_list.extend(iter_series(series_json_page['data']))
+        series_list.extend(
+            assoc(series_json, "period_start_day", list(map(pd.to_datetime, series_json["period_start_day"])))
+            for series_json in series_json_page['data']
+        )
         nb_series = len(series_list)
 
         # Stop if we have enough series.
