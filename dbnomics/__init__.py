@@ -36,7 +36,6 @@ import json
 import urllib.parse
 
 import pandas as pd
-from toolz import assoc
 
 from .internals import fetch_series_json_page
 
@@ -186,10 +185,11 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
         if max_nb_series is None and num_found > default_max_nb_series:
             raise TooManySeries(num_found, max_nb_series)
 
-        series_list.extend(
-            assoc(series_json, "period_start_day", list(map(pd.to_datetime, series_json["period_start_day"])))
-            for series_json in series_json_page['data']
-        )
+        for series_json in series_json_page['data']:
+            series_json["original_period"] = series_json["period"]
+            series_json["period"] = list(map(pd.to_datetime, series_json["period_start_day"]))
+            del series_json["period_start_day"]
+            series_list.append(series_json)
         nb_series = len(series_list)
 
         # Stop if we have enough series.

@@ -1,3 +1,9 @@
+## 0.3.0 -> 0.4.0
+
+Breaking changes in column names:
+
+- Rename `period` to `original_period`, and `period_start_day` to `period`.
+
 ## 0.2.1 -> 0.3.0
 
 Breaking changes in Python API:
