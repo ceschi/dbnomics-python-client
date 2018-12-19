@@ -43,7 +43,7 @@ setup(
     url='https://git.nomics.world/dbnomics/dbnomics-python-client',
 
     author='DBnomics Team',
-    author_email='christophe.benz@cepremap.org',
+    author_email='contact@nomics.world',
 
     license='AGPLv3',
 
