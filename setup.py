@@ -1,7 +1,7 @@
 # dbnomics-python-client -- Access DBnomics time series from Python
 # By: DBnomics Team <christophe.benz@cepremap.org>
 #
-# Copyright (C) 2017 Cepremap
+# Copyright (C) 2017-2018 Cepremap
 # https://git.nomics.world/dbnomics/dbnomics-python-client
 #
 # dbnomics-python-client is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@ Project properties and packaging infos.
 import codecs
 from os import path
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 HERE = path.abspath(path.dirname(__file__))
 
@@ -35,7 +35,7 @@ with codecs.open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='DBnomics',
-    version='0.4.0',
+    version='1.0.0',
 
     description='DBnomics Web API Client',
     long_description=LONG_DESCRIPTION,
@@ -53,7 +53,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 5 - Production/Stable',
 
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
@@ -77,7 +77,6 @@ setup(
     install_requires=[
         'requests >= 2.18.4',
         'pandas >= 0.21',
-        'semver',
     ],
 
     setup_requires=[

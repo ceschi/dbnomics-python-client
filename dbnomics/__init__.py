@@ -1,7 +1,7 @@
 # dbnomics-python-client -- Access DBnomics time series from Python
 # By: Christophe Benz <christophe.benz@cepremap.org>
 #
-# Copyright (C) 2017 Cepremap
+# Copyright (C) 2017-2018 Cepremap
 # https://git.nomics.world/dbnomics/dbnomics-python-client
 #
 # dbnomics-python-client is free software; you can redistribute it and/or modify
@@ -18,34 +18,24 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-"""
-This is the DBnomics Python client allowing to download time series from DBnomics Web API.
+"""Access DBnomics time series from Python."""
 
-The `fetch_*` functions call DBnomics Web API as many times as necessary to download the wanted number of series.
-
-The DBnomics Web API base URL can be customized by using the `api_base_url` parameter.
-This will probably never be useful, unless somebody deploys a new instance of DBnomics under another domain name.
-"""
-
-import platform
-python_major_version = platform.python_version_tuple()[0]
-if python_major_version < "3":
-    raise Exception("This package is compatible with Python 3, but version {} was detected.".format(python_major_version))
 
 import json
+import os
 import urllib.parse
 
 import pandas as pd
+import requests
 
-from .internals import fetch_series_json_page
-
-
-default_api_base_url = 'https://api.db.nomics.world'
+default_api_base_url = os.environ.get('API_URL') or 'https://api.db.nomics.world/v22'
 default_max_nb_series = 50
 
 
 class TooManySeries(Exception):
     def __init__(self, num_found, max_nb_series):
+        self.num_found = num_found
+        self.max_nb_series = max_nb_series
         message = (
             "DBnomics Web API found {num_found} series matching your request, " +
             (
@@ -63,22 +53,14 @@ class TooManySeries(Exception):
         super().__init__(message)
 
 
-def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_mask=None, series_ids=None,
+def fetch_series(provider_code=None, dataset_code=None, series_code=None, dimensions=None, series_ids=None,
                  max_nb_series=None, api_base_url=None):
-    """Download time series from DBnomics Web API. According to the given parameters, the search filters are different.
+    """Download time series from DBnomics. Filter series by different ways according to the given parameters.
 
-    If not None, `dimensions` parameter must be a `dict` of dimensions (`list` of `str`), like so:
+    If not `None`, `dimensions` parameter must be a `dict` of dimensions (`list` of `str`), like so:
     `{"freq": ["A", "M"], "country": ["FR"]}`.
 
-    If not None, `code_mask` must be a `str`.
-    Some providers are not compatible with series code masks.
-    The full list is here: https://git.nomics.world/dbnomics/dbnomics-api/blob/master/dbnomics_api/application.cfg
-    (see the SERIES_CODE_MASK_COMPATIBLE_PROVIDERS variable).
-    To be compatible, providers series codes must be composed of dimensions values codes, separated by a '.',
-    like `M.QA.PCPIEC_WT`.
-    For example, "IMF", "Eurostat" and "INSEE" are compatible providers, but "Bank of England" is not.
-
-    A code mask can designate many series, whereas a series code designates one series. It allows to:
+    If not `None`, `series_code` must be a `str`. It can be a series code (one series), or a "mask" (many series):
     - remove a constraint on a dimension, for example `M..PCPIEC_WT`;
     - enumerate many values for a dimension, separated by a '+', for example `M.FR+DE.PCPIEC_WT`;
     - combine these possibilities many times in the same SDMX filter.
@@ -107,9 +89,9 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
       fetch_series("AMECO", "ZUTN", dimensions={"geo": ["dnk"]})
 
     - fetch many series from the same dataset, searching by code mask:
-      fetch_series("IMF", "CPI", code_mask="M.FR+DE.PCPIEC_WT")
-      fetch_series("IMF", "CPI", code_mask=".FR.PCPIEC_WT")
-      fetch_series("IMF", "CPI", code_mask="M..PCPIEC_IX+PCPIA_IX")
+      fetch_series("IMF", "CPI", series_code="M.FR+DE.PCPIEC_WT")
+      fetch_series("IMF", "CPI", series_code=".FR.PCPIEC_WT")
+      fetch_series("IMF", "CPI", series_code="M..PCPIEC_IX+PCPIA_IX")
     """
     # Parameters validation
     if api_base_url is None:
@@ -130,8 +112,8 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
         raise ValueError("`dataset_code` parameter must be a string")
     if dimensions is not None and not isinstance(dimensions, dict):
         raise ValueError("`dimensions` parameter must be a dict")
-    if code_mask is not None and not isinstance(code_mask, str):
-        raise ValueError("`code_mask` parameter must be a string")
+    if series_code is not None and not isinstance(series_code, str):
+        raise ValueError("`series_code` parameter must be a string")
     if series_ids is not None and (
         not isinstance(series_ids, list) or
         any(not isinstance(series_id, str) for series_id in series_ids)
@@ -140,29 +122,25 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
     if api_base_url is not None and not isinstance(api_base_url, str):
         raise ValueError("`api_base_url` parameter must be a string")
 
-    series_base_url = api_base_url + '/series?'
+    series_base_url = api_base_url + '/series'
 
     if dimensions is not None:
         if not provider_code or not dataset_code:
-            raise ValueError("When you filter with `dimensions`, you must specifiy `provider_code` and `dataset_code` "
-                             "as arguments of the function.")
-        api_link = series_base_url + 'provider_code={}&dataset_code={}&dimensions={}'.format(
-            provider_code, dataset_code, json.dumps(dimensions))
+            raise ValueError("When you use `dimensions`, you must specifiy `provider_code` and `dataset_code`.")
+        api_link = series_base_url + \
+            '/{}/{}?observations=1&dimensions={}'.format(provider_code, dataset_code, json.dumps(dimensions))
         return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
 
-    if code_mask is not None:
+    if series_code is not None:
         if not provider_code or not dataset_code:
-            raise ValueError("When you filter with `code_mask`, you must specifiy `provider_code` and `dataset_code` "
-                             "as arguments of the function.")
-        api_link = series_base_url + 'provider_code={}&dataset_code={}&series_code_mask={}'.format(
-            provider_code, dataset_code, code_mask)
+            raise ValueError("When you use `series_code`, you must specifiy `provider_code` and `dataset_code`.")
+        api_link = series_base_url + '/{}/{}/{}?observations=1'.format(provider_code, dataset_code, series_code)
         return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
 
     if series_ids is not None:
         if provider_code or dataset_code:
-            raise ValueError("When you filter with `code_mask`, you must not specifiy "
-                             "`provider_code` and `dataset_code` as arguments of the function.")
-        api_link = series_base_url + 'series_ids={}'.format(','.join(series_ids))
+            raise ValueError("When you use `series_code`, you must not specifiy `provider_code` nor `dataset_code`.")
+        api_link = series_base_url + '?observations=1&series_ids={}'.format(','.join(series_ids))
         return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
 
     raise ValueError("Invalid combination of function arguments")
@@ -171,24 +149,41 @@ def fetch_series(provider_code=None, dataset_code=None, dimensions=None, code_ma
 def fetch_series_by_api_link(api_link, max_nb_series=None):
     """Fetch series given an "API link" URL.
 
+    "API link" URLs can be found on DBnomics web site (https://db.nomics.world/) on dataset or series pages
+    using "Download" buttons.
+
     Example:
-      fetch_series(api_link="https://api.db.nomics.world/series?provider_code=AMECO&dataset_code=ZUTN")
+      fetch_series(api_link="https://api.db.nomics.world/v22/series?provider_code=AMECO&dataset_code=ZUTN")
     """
     series_list = []
     offset = 0
 
     while True:
-        response_json = fetch_series_json_page(api_link, offset=offset)
+        response_json = _fetch_series_json_page(api_link, offset=offset)
         series_json_page = response_json["series"]
 
         num_found = series_json_page['num_found']
         if max_nb_series is None and num_found > default_max_nb_series:
             raise TooManySeries(num_found, max_nb_series)
 
-        for series_json in series_json_page['data']:
-            series_json["original_period"] = series_json["period"]
-            series_json["period"] = list(map(pd.to_datetime, series_json["period_start_day"]))
-            del series_json["period_start_day"]
+        series_json_list = series_json_page['docs']
+        for series_json in series_json_list:
+            # Rename keys and convert str to datetime.
+            period = series_json.pop("period", [])
+            period_start_day = series_json.pop("period_start_day", [])
+            series_json["original_period"] = period
+            series_json["period"] = list(map(pd.to_datetime, period_start_day))
+
+            # Flatten dimensions.
+            dimensions = series_json.pop("dimensions", {})
+            for dimension_code, dimension_value_code in dimensions.items():
+                series_json[dimension_code] = dimension_value_code
+
+            # Flatten observations attributes.
+            observations_attributes = series_json.pop("observations_attributes", [])
+            for attribute_code, attribute_value_code in observations_attributes:
+                series_json[attribute_code] = attribute_value_code
+
             series_list.append(series_json)
         nb_series = len(series_list)
 
@@ -211,6 +206,21 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
         else pd.DataFrame()
 
 
-def __enable_development_mode():
-    global default_api_base_url
-    default_api_base_url = 'http://localhost:5000'
+def _fetch_series_json_page(series_json_url, offset):
+    page_url = '{}{}offset={}'.format(
+        series_json_url,
+        '&' if '?' in series_json_url else '?',
+        offset,
+    )
+
+    response = requests.get(page_url)
+    response_json = response.json()
+    if not response.ok:
+        message = response_json.get('message')
+        raise ValueError("Could not fetch data from URL {!r} because: {}".format(page_url, message))
+
+    series_json_page = response_json.get('series')
+    if series_json_page is not None:
+        assert series_json_page['offset'] == offset, (series_json_page['offset'], offset)
+
+    return response_json

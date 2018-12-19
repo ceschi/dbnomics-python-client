@@ -1,3 +1,9 @@
+## 0.4.0 -> 1.0.0
+
+Breaking changes in Python API:
+
+- `fetch_series` function: rename `code_mask` to `series_code`. Before it could only be a mask. Now it's possible to use it as a normal series code or a mask.
+
 ## 0.3.0 -> 0.4.0
 
 Breaking changes in column names:

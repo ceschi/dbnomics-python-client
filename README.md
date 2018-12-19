@@ -38,3 +38,14 @@ Or set the default API URL by [monkey-patching](https://en.wikipedia.org/wiki/Mo
 import dbnomics
 dbnomics.default_api_base_url = "http://localhost:5000"
 ```
+
+## Tests
+
+Run tests:
+
+```bash
+pytest tests/test_client.py
+
+# Specify an alterate API URL
+API_URL=http://localhost:5000 pytest tests/test_client.py
+```
