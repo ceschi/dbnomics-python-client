@@ -18,6 +18,8 @@ Unfortunately, Binder is only compatible with GitHub for now, and DBnomics is ho
 pip install dbnomics
 ```
 
+See also: https://pypi.org/project/DBnomics/
+
 ## Development
 
 To work on dbnomics-python-client source code:
