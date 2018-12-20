@@ -14,13 +14,19 @@ Unfortunately, Binder is only compatible with GitHub for now, and DBnomics is ho
 
 ## Install
 
-```sh
+```bash
+pip install dbnomics
+```
+
+## Development
+
+To work on dbnomics-python-client source code:
+
+```bash
 git clone https://git.nomics.world/dbnomics/dbnomics-python-client.git
 cd dbnomics-python-client
 pip install --editable .
 ```
-
-## Development
 
 If you plan to use a local Web API, running on the port 5000, you'll need to use the `api_base_url` parameter of the `fetch_*` functions, like this:
 
