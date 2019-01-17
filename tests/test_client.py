@@ -128,6 +128,21 @@ def test_fetch_series_by_dimension():
     assert len(series_codes), df
 
 
+def test_fetch_series_of_dataset():
+    df = fetch_series('AMECO', 'ZUTN')
+
+    provider_codes = df["provider_code"].unique()
+    assert len(provider_codes) == 1, df
+    assert provider_codes[0] == "AMECO", df
+
+    dataset_codes = df["dataset_code"].unique()
+    assert len(dataset_codes) == 1, df
+    assert dataset_codes[0] == "ZUTN", df
+
+    series_codes = df["series_code"].unique()
+    assert len(series_codes) > 1, df
+
+
 def test_fetch_series_by_api_link():
     df = fetch_series_by_api_link(
         "https://api.dev.db.nomics.world/v22/series/BIS/PP-SS?dimensions=%7B%22FREQ%22%3A%5B%22Q%22%5D%2C%22REF_AREA%22%3A%5B%22AU%22%5D%7D&observations=1")

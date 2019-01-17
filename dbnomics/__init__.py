@@ -124,6 +124,12 @@ def fetch_series(provider_code=None, dataset_code=None, series_code=None, dimens
 
     series_base_url = api_base_url + '/series'
 
+    if dimensions is None and series_code is None and series_ids is None:
+        if not provider_code or not dataset_code:
+            raise ValueError("When you don't use `dimensions`, you must specifiy `provider_code` and `dataset_code`.")
+        api_link = series_base_url + '/{}/{}?observations=1'.format(provider_code, dataset_code)
+        return fetch_series_by_api_link(api_link, max_nb_series=max_nb_series)
+
     if dimensions is not None:
         if not provider_code or not dataset_code:
             raise ValueError("When you use `dimensions`, you must specifiy `provider_code` and `dataset_code`.")
