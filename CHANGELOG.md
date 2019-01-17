@@ -1,3 +1,7 @@
+## 1.0.0 -> 1.0.1
+
+Fix fetching all the series of a dataset.
+
 ## 0.4.0 -> 1.0.0
 
 Breaking changes in Python API:

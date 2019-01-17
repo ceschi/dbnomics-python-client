@@ -35,7 +35,7 @@ with codecs.open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='DBnomics',
-    version='1.0.0',
+    version='1.0.1',
 
     description='DBnomics Web API Client',
     long_description=LONG_DESCRIPTION,
