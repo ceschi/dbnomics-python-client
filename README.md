@@ -4,13 +4,11 @@ Access DBnomics time series from Python.
 
 This project relies on [Python Pandas](https://pandas.pydata.org/).
 
-## Demo
+## Tutorial
 
-A demo is available thanks to the [Binder project](https://mybinder.org/).
+A tutorial is available as a [Jupyter notebook](./index.ipynb).
 
-To launch the demo, click here: [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/dbnomics/dbnomics-python-client/master?filepath=index.ipynb) then wait a couple of seconds to be redirected to a Jupyter Notebook home page, displaying a list of files. In this list, click on `index.ipynb`. Then you'll be in a demo notebook, where you'll be able to play with the DBnomics Python client.
-
-Unfortunately, Binder is only compatible with GitHub for now, and DBnomics is hosted on its own [GitLab platform](https://git.nomics.world/). That's why we created a mirror of this project [on GitHub](https://github.com/dbnomics/dbnomics-python-client), but the real home is [on DBnomics GitLab](https://git.nomics.world/dbnomics/dbnomics-python-client).
+The "Binder" tool allows you to run it interactively in your browser. Click on [![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/dbnomics/dbnomics-python-client/master?filepath=index.ipynb) then wait a couple of seconds. After loading a list of files should be displayed. Click on `index.ipynb` to open the tutorial notebook, where you'll be able to play with the DBnomics Python client.
 
 ## Install
 
