@@ -52,6 +52,21 @@ def test_fetch_series_by_code_mask():
     assert len(series_codes) == 4, df
 
 
+def test_fetch_series_by_code_mask_with_plus_in_dimension_code():
+    df = fetch_series('SCB', 'AKIAM', '"J+K"+"G+H".AM0301C1')
+
+    provider_codes = df["provider_code"].unique()
+    assert len(provider_codes) == 1, df
+    assert provider_codes[0] == "SCB", df
+
+    dataset_codes = df["dataset_code"].unique()
+    assert len(dataset_codes) == 1, df
+    assert dataset_codes[0] == "AKIAM", df
+
+    series_codes = df["series_code"].unique()
+    assert set(series_codes) == {'J+K.AM0301C1', 'G+H.AM0301C1'}, series_codes
+
+
 def test_fetch_series_by_id():
     df = fetch_series('AMECO/ZUTN/EA19.1.0.0.0.ZUTN')
 
