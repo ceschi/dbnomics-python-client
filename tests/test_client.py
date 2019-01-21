@@ -18,7 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from dbnomics import fetch_series, fetch_series_by_api_link
+from dbnomics import default_api_base_url, fetch_series, fetch_series_by_api_link
 
 
 def test_fetch_series_by_code():
@@ -145,7 +145,8 @@ def test_fetch_series_of_dataset():
 
 def test_fetch_series_by_api_link():
     df = fetch_series_by_api_link(
-        "https://api.dev.db.nomics.world/v22/series/BIS/PP-SS?dimensions=%7B%22FREQ%22%3A%5B%22Q%22%5D%2C%22REF_AREA%22%3A%5B%22AU%22%5D%7D&observations=1")
+        default_api_base_url +
+        "/series/BIS/PP-SS?dimensions=%7B%22FREQ%22%3A%5B%22Q%22%5D%2C%22REF_AREA%22%3A%5B%22AU%22%5D%7D&observations=1")
 
     provider_codes = df["provider_code"].unique()
     assert len(provider_codes) == 1, df
