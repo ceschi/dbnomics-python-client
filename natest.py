@@ -13,7 +13,7 @@ urllink = 'https://api.db.nomics.world/v22/series/AMECO/ZUTN/CYP.1.0.0.0.ZUTN?ob
 # new random series
 foo = dbnomics.fetch_series_by_api_link(urllink, max_nb_series=2)
 
-foo.loc[:,"value"].head(20)
+print(foo.loc[:,"value"].head(20))
 
 # series with known errors
 tables = [
