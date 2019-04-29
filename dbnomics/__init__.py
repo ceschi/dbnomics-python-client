@@ -224,7 +224,7 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
     # print(bernardo.loc[:,'value'].head(100))
     # print("\nThis is bernardo\'s type, maybe")
     # print(type(bernardo).__name__)
-    bernardo.loc[bernardo.loc['value'].apply(type) == str] = 'asd'
+    bernardo.loc[bernardo.value.apply(type) == str] = 'asd'
 
 
     # return pd.concat(map(pd.DataFrame, series_list)) \
