@@ -184,23 +184,13 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
             dimensions = series_json.pop("dimensions", {})
             for dimension_code, dimension_value_code in dimensions.items():
                 series_json[dimension_code] = dimension_value_code
-                # print(dimension_value_code)
-                # print(dimension_code)
-                # print('\n\n\nSANBERNARDO PESCATORE\n\n\n\n')
-                # print(series_json)
 
             # Flatten observations attributes.
             observations_attributes = series_json.pop("observations_attributes", [])
             for attribute_code, attribute_value_code in observations_attributes:
                 series_json[attribute_code] = attribute_value_code
  
-
             series_list.append(series_json)
-
-
-            # oneliner to handle multiple types of missing obs
-            # it assigns to strings in value column, 'None' 
-            # series_list.loc[series_list.value.apply(type) == str] = None
 
         nb_series = len(series_list)
 
@@ -218,17 +208,13 @@ def fetch_series_by_api_link(api_link, max_nb_series=None):
 
         offset += nb_series
 
-        # print(series_list.head(10))
-    bernardo = pd.concat(map(pd.DataFrame, series_list)) 
-    # print("\n\n\nWhat follows is bernando's head")
-    # print(bernardo.loc[:,'value'].head(100))
-    # print("\nThis is bernardo\'s type, maybe")
-    # print(type(bernardo).__name__)
-    bernardo.loc[bernardo.value.apply(type) == str, 'value'] = None
+    # define output
+    output = pd.concat(map(pd.DataFrame, series_list)) 
 
+    # reformat generic missing obs to 'None'
+    output.loc[output.value.apply(type) == str, 'value'] = None
 
-    # return pd.concat(map(pd.DataFrame, series_list)) \
-    return bernardo \
+    return output \
         if series_list \
         else pd.DataFrame()
 
